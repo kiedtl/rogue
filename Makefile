@@ -1,53 +1,31 @@
 #
 # Makefile for rogue
+# %W% (Berkeley) %G%
 #
-# Advanced Rogue
-# Copyright (C) 1984, 1985 Michael Morgan, Ken Dalka and AT&T
-# All rights reserved.
-#
-# Based on "Rogue: Exploring the Dungeons of Doom"
-# Copyright (C) 1980, 1981 Michael Toy, Ken Arnold and Glenn Wichman
-# All rights reserved.
-#
-# See the file LICENSE.TXT for full copyright and licensing information.
-#
+DISTNAME=rogue3.6.2
 
-DISTNAME=arogue5.8-1
-PROGRAM=arogue58
+HDRS= rogue.h machdep.h
+OBJS= vers.o armor.o chase.o command.o daemon.o daemons.o fight.o \
+	init.o io.o list.o main.o misc.o monsters.o move.o newlevel.o \
+	options.o pack.o passages.o potions.o rings.o rip.o rooms.o \
+	save.o scrolls.o state.o sticks.o things.o weapons.o wizard.o xcrypt.o
+CFILES= vers.c armor.c chase.c command.c daemon.c daemons.c fight.c \
+	init.c io.c list.c main.c misc.c monsters.c move.c newlevel.c \
+	options.c pack.c passages.c potions.c rings.c rip.c rooms.c \
+	save.c scrolls.c state.c sticks.c things.c weapons.c wizard.c xcrypt.c
 
-O=o
-
-HDRS  = rogue.h mach_dep.h network.h
-OBJS1 = chase.$(O) command.$(O) daemon.$(O) daemons.$(O) encumb.$(O) \
-        fight.$(O) init.$(O) io.$(O) list.$(O) main.$(O) maze.$(O) misc.$(O) \
-        monsters.$(O) move.$(O) new_level.$(O) options.$(O) outside.$(O) 
-OBJS2 = pack.$(O) passages.$(O) player.$(O) potions.$(O) rings.$(O) rip.$(O) \
-        rogue.$(O) rooms.$(O) save.$(O) scrolls.$(O) state.$(O) sticks.$(O) \
-        things.$(O) trader.$(O) util.$(O) vers.$(O) weapons.$(O) wear.$(O) \
-        wizard.$(O) xcrypt.$(O)
-OBJS  = $(OBJS1) $(OBJS2)
-CFILES= \
-      vers.c chase.c command.c daemon.c daemons.c encumb.c \
-      fight.c init.c io.c list.c main.c maze.c misc.c monsters.c move.c \
-      new_level.c options.c outside.c pack.c passages.c player.c \
-      potions.c rings.c rip.c rogue.c \
-      rooms.c save.c scrolls.c state.c sticks.c things.c trader.c util.c \
-      weapons.c wear.c wizard.c xcrypt.c
-
-MISC=	Makefile LICENSE.TXT
+MISC=	Makefile LICENSE.TXT rogue.6 rogue.r
 
 CC    = gcc
-CFLAGS= -g
+CFLAGS= -O3
 CRLIB = -lcurses
 RM    = rm -f
 TAR   = tar
-.SUFFIXES: .obj
 
-.c.obj:
-	$(CC) $(CFLAGS) /c $*.c
-
-$(PROGRAM): $(OBJS)
+rogue: $(HDRS) $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(CRLIB) -o $@
+
+main.o rip.o: machdep.h
 
 tags: $(HDRS) $(CFILES)
 	ctags -u $?
@@ -58,9 +36,8 @@ lint:
 	lint -hxbc $(CFILES) $(CRLIB) > linterrs
 
 clean:
-	$(RM) $(OBJS1)
-	$(RM) $(OBJS2)
-	$(RM) core a.exe a.out a.exe.stackdump $(PROGRAM) $(PROGRAM).exe $(PROGRAM).tar $(PROGRAM).tar.gz $(PROGRAM).zip
+	rm -f $(OBJS) core 
+	rm -f rogue rogue.exe rogue.tar rogue.tar.gz rogue.cat rogue.doc
 
 count:
 	wc -l $(HDRS) $(CFILES)
@@ -75,108 +52,62 @@ dist:
 	@mkdir dist
 	cp $(CFILES) $(HDRS) $(MISC) dist
 
+xtar: $(CFILES) $(HDRS) $(MISC)
+	rm -f rogue.tar
+	tar cf rogue.tar $? :ctfix
+	touch xtar
+
+cfiles: $(CFILES)
+
 dist.src:
 	make clean
 	tar cf $(DISTNAME)-src.tar $(CFILES) $(HDRS) $(MISC)
-	gzip -f $(DISTNAME)-src.tar
+	gzip $(DISTNAME)-src.tar
 
 dist.irix:
 	make clean
-	make CC=cc CFLAGS="-woff 1116 -O3" $(PROGRAM)
-	tar cf $(DISTNAME)-irix.tar $(PROGRAM) LICENSE.TXT
-	gzip -f $(DISTNAME)-irix.tar
+	make CC=cc CFLAGS="-woff 1116 -O3" rogue
+	tbl rogue.r | nroff -ms | colcrt - > rogue.doc
+	nroff -man rogue.6 | colcrt - > rogue.cat
+	tar cf $(DISTNAME)-irix.tar rogue LICENSE.TXT rogue.cat roguedoc.doc
+	gzip $(DISTNAME)-irix.tar
 
 dist.aix:
 	make clean
-	make CC=xlc CFLAGS="-qmaxmem=16768 -O3 -qstrict" $(PROGRAM)
-	tar cf $(DISTNAME)-aix.tar $(PROGRAM) LICENSE.TXT
-	gzip -f $(DISTNAME)-aix.tar
-
-debug.linux:
-	make clean
-	make CFLAGS="-g -DWIZARD" $(PROGRAM)
+	make CC=xlc CFLAGS="-qmaxmem=16768 -O3 -qstrict" rogue
+	tbl rogue.r | nroff -ms | colcrt - > rogue.doc
+	nroff -man rogue.6 | colcrt - > rogue.cat
+	tar cf $(DISTNAME)-aix.tar rogue LICENSE.TXT rogue.cat rogue.doc
+	gzip $(DISTNAME)-aix.tar
 
 dist.linux:
 	make clean
-	make $(PROGRAM)
-	tar cf $(DISTNAME)-linux.tar $(PROGRAM) LICENSE.TXT
-	gzip -f $(DISTNAME)-linux.tar
-	
-debug.interix: 
-	make clean
-	make CFLAGS="-g3 -DWIZARD" $(PROGRAM)
+	make rogue
+	groff -P-c -t -ms -Tascii rogue.r | sed -e 's/.\x08//g' > rogue.doc
+	groff -man rogue.6 | sed -e 's/.\x08//g' > rogue.cat
+	tar cf $(DISTNAME)-linux.tar rogue LICENSE.TXT rogue.cat rogue.doc
+	gzip $(DISTNAME)-linux.tar
 	
 dist.interix: 
 	make clean
-	make $(PROGRAM)
-	tar cf $(DISTNAME)-interix.tar $(PROGRAM) LICENSE.TXT
+	make rogue
+	groff -P-b -P-u -t -ms -Tascii rogue.r > rogue.doc
+	groff -P-b -P-u -man -Tascii rogue.6 > rogue.cat
+	tar cf $(DISTNAME)-interix.tar rogue LICENSE.TXT rogue.cat rogue.doc
 	gzip -f $(DISTNAME)-interix.tar
 	
-debug.cygwin:
-	make clean
-	make CFLAGS="-g3 -DWIZARD" $(PROGRAM)
-
 dist.cygwin:
-#	make clean
-	make CRLIB="-static -lcurses" $(PROGRAM)
-	tar cf $(DISTNAME)-cygwin.tar $(PROGRAM).exe LICENSE.TXT
+	make clean
+	make rogue
+	groff -P-c -t -ms -Tascii rogue.r | sed -e 's/.\x08//g' > rogue.doc
+	groff -P-c -man -Tascii rogue.6 | sed -e 's/.\x08//g' > rogue.cat
+	tar cf $(DISTNAME)-cygwin.tar rogue.exe LICENSE.TXT rogue.cat rogue.doc
 	gzip -f $(DISTNAME)-cygwin.tar
 	
-debug.djgpp: 
-	make clean
-	make CFGLAGS="-g3 -DWIZARD" LDFLAGS="-L$(DJDIR)/LIB" CRLIB="-lpdcurses" $(PROGRAM)
-
 dist.djgpp: 
 	make clean
-	make LDFLAGS="-L$(DJDIR)/LIB" CRLIB="-lpdcurses" $(PROGRAM)
+	make LDFLAGS="-L$(DJDIR)/LIB" CRLIB="-lpdcurses" rogue
+	groff -t -ms -Tascii rogue.r | sed -e 's/.\x08//g' > rogue.doc
+	groff -man -Tascii rogue.6 | sed -e 's/.\x08//g' > rogue.cat
 	rm -f $(DISTNAME)-djgpp.zip
-	zip $(DISTNAME)-djgpp.zip $(PROGRAM).exe LICENSE.TXT
-
-debug.win32:
-	nmake O="obj" RM="-del" clean
-	nmake O="obj" CC="CL" CRLIB="pdcurses.lib user32.lib Advapi32.lib Ws2_32.lib" CFLAGS="-DWIZARD -DPDC_STATIC_BUILD -nologo -I.. -Ox -wd4033 -wd4716" $(PROGRAM)
-
-dist.win32:
-	nmake O="obj" RM="-del" clean
-	nmake O="obj" CC="CL" CRLIB="pdcurses.lib user32.lib Advapi32.lib Ws2_32.lib" CFLAGS="-DPDC_STATIC_BUILD -nologo -I.. -Ox -wd4033 -wd4716" $(PROGRAM)
-	-del $(DISTNAME)-win32.zip
-	zip $(DISTNAME)-win32.zip $(PROGRAM).exe LICENSE.TXT
-
-vers.$(O): vers.c rogue.h
-chase.$(O): chase.c rogue.h
-command.$(O): command.c rogue.h
-daemon.$(O): daemon.c rogue.h
-daemons.$(O): daemons.c rogue.h
-encumb.$(O): encumb.c rogue.h
-fight.$(O): fight.c rogue.h
-init.$(O): init.c rogue.h
-io.$(O): io.c rogue.h
-list.$(O): list.c rogue.h
-main.$(O): main.c rogue.h
-maze.$(O): maze.c rogue.h
-misc.$(O): misc.c rogue.h
-monsters.$(O): monsters.c rogue.h
-move.$(O): move.c rogue.h
-new_level.$(O): new_level.c rogue.h
-options.$(O): options.c rogue.h
-outside.$(O): outside.c rogue.h
-pack.$(O): pack.c rogue.h
-passages.$(O): passages.c rogue.h
-player.$(O): player.c rogue.h
-potions.$(O): potions.c rogue.h
-rings.$(O): rings.c rogue.h
-rip.$(O): rip.c rogue.h
-rogue.$(O): rogue.c rogue.h
-rooms.$(O): rooms.c rogue.h
-save.$(O): save.c rogue.h
-scrolls.$(O): scrolls.c rogue.h
-state.$(O): state.c rogue.h
-sticks.$(O): sticks.c rogue.h
-things.$(O): things.c rogue.h
-trader.$(O): trader.c rogue.h
-util.$(O): util.c rogue.h
-weapons.$(O): weapons.c rogue.h
-wear.$(O): wear.c rogue.h
-wizard.$(O): wizard.c rogue.h
-xcrypt.$(O): xcrypt.c
-
+	zip $(DISTNAME)-djgpp.zip rogue.exe LICENSE.TXT rogue.cat rogue.doc

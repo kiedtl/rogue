@@ -2,16 +2,6 @@
  * Draw the connecting passages
  *
  * @(#)passages.c	3.4 (Berkeley) 6/15/81
- *
- * Advanced Rogue
- * Copyright (C) 1984, 1985 Michael Morgan, Ken Dalka and AT&T
- * All rights reserved.
- *
- * Based on "Rogue: Exploring the Dungeons of Doom"
- * Copyright (C) 1980, 1981 Michael Toy, Ken Arnold and Glenn Wichman
- * All rights reserved.
- *
- * See the file LICENSE.TXT for full copyright and licensing information.
  */
 
 #include "curses.h"
@@ -47,7 +37,7 @@ do_passages()
     /*
      * reinitialize room graph description
      */
-    for (r1 = rdes; r1 < &rdes[MAXROOMS]; r1++)
+    for (r1 = rdes; r1 <= &rdes[MAXROOMS-1]; r1++)
     {
 	for (j = 0; j < MAXROOMS; j++)
 	    r1->isconn[j] = FALSE;
@@ -270,15 +260,21 @@ door(rm, cp)
 register struct room *rm;
 register coord *cp;
 {
-    struct linked_list *newroom;
-    coord *exit;
-
     cmov(*cp);
     addch(rnd(10) < level - 1 && rnd(100) < 20 ? SECRETDOOR : DOOR);
+    rm->r_exit[rm->r_nexits++] = *cp;
+}
+/*
+ * add_pass:
+ *	add the passages to the current window (wizard command)
+ */
 
-    /* Insert the new room into the linked list of rooms */
-    newroom = new_item(sizeof(coord));
-    exit = DOORPTR(newroom);
-    *exit = *cp;
-    attach(rm->r_exit, newroom);
+add_pass()
+{
+    register int y, x, ch;
+
+    for (y = 1; y < LINES - 2; y++)
+	for (x = 0; x < COLS; x++)
+	    if ((ch=mvinch(y, x)) == PASSAGE || ch == DOOR || ch == SECRETDOOR)
+		mvwaddch(cw, y, x, ch);
 }

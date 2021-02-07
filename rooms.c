@@ -1,15 +1,7 @@
 /*
  * Draw the nine rooms on the screen
  *
- * Advanced Rogue
- * Copyright (C) 1984, 1985 Michael Morgan, Ken Dalka and AT&T
- * All rights reserved.
- *
- * Based on "Rogue: Exploring the Dungeons of Doom"
- * Copyright (C) 1980, 1981 Michael Toy, Ken Arnold and Glenn Wichman
- * All rights reserved.
- *
- * See the file LICENSE.TXT for full copyright and licensing information.
+ * @(#)rooms.c	3.8 (Berkeley) 6/15/81
  */
 
 #include "curses.h"
@@ -30,13 +22,12 @@ do_rooms()
      * bsze is the maximum room size
      */
     bsze.x = COLS/3;
-    bsze.y = (LINES-2)/3;
+    bsze.y = LINES/3;
     /*
      * Clear things for a new level
      */
     for (rp = rooms; rp < &rooms[MAXROOMS]; rp++)
-	rp->r_flags = 0;
-	rp->r_fires = NULL;
+	rp->r_goldval = rp->r_nexits = rp->r_flags = 0;
     /*
      * Put the gone rooms, if any, on the level
      */
@@ -48,13 +39,11 @@ do_rooms()
      */
     for (i = 0, rp = rooms; i < MAXROOMS; rp++, i++)
     {
-	bool has_gold=FALSE;
-
 	/*
 	 * Find upper left corner of box that this room goes in
 	 */
-	top.x = (i%3)*bsze.x;
-	top.y = i/3*bsze.y + 1;
+	top.x = (i%3)*bsze.x + 1;
+	top.y = i/3*bsze.y;
 	if (rp->r_flags & ISGONE)
 	{
 	    /*
@@ -67,7 +56,7 @@ do_rooms()
 		rp->r_pos.y = top.y + rnd(bsze.y-2) + 1;
 		rp->r_max.x = -COLS;
 		rp->r_max.x = -LINES;
-	    } until(rp->r_pos.y > 0 && rp->r_pos.y < LINES-2);
+	    } until(rp->r_pos.y > 0 && rp->r_pos.y < LINES-1);
 	    continue;
 	}
 	if (rnd(10) < level-1)
@@ -82,70 +71,38 @@ do_rooms()
 	    rp->r_pos.x = top.x + rnd(bsze.x - rp->r_max.x);
 	    rp->r_pos.y = top.y + rnd(bsze.y - rp->r_max.y);
 	} until (rp->r_pos.y != 0);
-
-	/* Draw the room */
-	draw_room(rp);
-
 	/*
 	 * Put the gold in
 	 */
-	if (rnd(100) < 50 && level >= cur_max)
+	if (rnd(100) < 50 && (!amulet || level >= max_level))
 	{
-	    register struct linked_list *item;
-	    register struct object *cur;
-	    coord tp;
-
-	    has_gold = TRUE;	/* This room has gold in it */
-
-	    item = spec_item(GOLD, NULL, NULL, NULL);
-	    cur = OBJPTR(item);
-
-	    /* Put the gold into the level list of items */
-	    attach(lvl_obj, item);
-
-	    /* Put it somewhere */
-	    rnd_pos(rp, &tp);
-	    mvaddch(tp.y, tp.x, GOLD);
-	    cur->o_pos = tp;
-	    if (roomin(&tp) != rp) {
-		endwin();
-		abort();
-	    }
+	    rp->r_goldval = GOLDCALC;
+	    rnd_pos(rp, &rp->r_gold);
+	    if (roomin(&rp->r_gold) != rp)
+		endwin(), abort();
 	}
-
+	draw_room(rp);
 	/*
 	 * Put the monster in
 	 */
-	if (rnd(100) < (has_gold ? 80 : 25) + vlevel/2)
+	if (rnd(100) < (rp->r_goldval > 0 ? 80 : 25))
 	{
 	    item = new_item(sizeof *tp);
-	    tp = THINGPTR(item);
+	    tp = (struct thing *) ldata(item);
 	    do
 	    {
 		rnd_pos(rp, &mp);
 	    } until(mvwinch(stdscr, mp.y, mp.x) == FLOOR);
-	    new_monster(item, randmonster(FALSE, FALSE), &mp, FALSE);
+	    new_monster(item, randmonster(FALSE), &mp);
 	    /*
 	     * See if we want to give it a treasure to carry around.
 	     */
-	    carry_obj(tp, monsters[tp->t_index].m_carry);
-
-	    /*
-	     * If it has a fire, mark it
-	     */
-	    if (on(*tp, HASFIRE)) {
-		register struct linked_list *fire_item;
-
-		fire_item = creat_item();
-		ldata(fire_item) = (char *) tp;
-		attach(rp->r_fires, fire_item);
-		rp->r_flags |= HASFIRE;
-	    }
+	    if (rnd(100) < monsters[tp->t_type-'A'].m_carry)
+		attach(tp->t_pack, new_thing());
 	}
     }
 }
 
-
 /*
  * Draw a box around a room
  */
@@ -171,8 +128,13 @@ register struct room *rp;
 	for (k = 1; k < rp->r_max.x-1; k++)
 	    addch(FLOOR);
     }
+    /*
+     * Put the gold there
+     */
+    if (rp->r_goldval)
+	mvaddch(rp->r_gold.y, rp->r_gold.x, GOLD);
 }
-
+
 /*
  * horiz:
  *	draw a horizontal line
@@ -184,40 +146,7 @@ register int cnt;
     while (cnt--)
 	addch('-');
 }
-
-/*
- * rnd_pos:
- *	pick a random spot in a room
- */
 
-rnd_pos(rp, cp)
-register struct room *rp;
-register coord *cp;
-{
-    cp->x = rp->r_pos.x + rnd(rp->r_max.x-2) + 1;
-    cp->y = rp->r_pos.y + rnd(rp->r_max.y-2) + 1;
-}
-
-
-
-/*
- * roomin:
- *	Find what room some coordinates are in. NULL means they aren't
- *	in any room.
- */
-
-struct room *
-roomin(cp)
-register coord *cp;
-{
-    register struct room *rp;
-
-    for (rp = rooms; rp < &rooms[MAXROOMS]; rp++)
-	if (inroom(rp, cp))
-	    return rp;
-    return NULL;
-}
-
 /*
  * vert:
  *	draw a vertical line
@@ -234,4 +163,17 @@ register int cnt;
 	move(++y, x);
 	addch('|');
     }
+}
+
+/*
+ * rnd_pos:
+ *	pick a random spot in a room
+ */
+
+rnd_pos(rp, cp)
+register struct room *rp;
+register coord *cp;
+{
+    cp->x = rp->r_pos.x + rnd(rp->r_max.x-2) + 1;
+    cp->y = rp->r_pos.y + rnd(rp->r_max.y-2) + 1;
 }

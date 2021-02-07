@@ -1,22 +1,13 @@
 /*
  * Read and execute the user commands
  *
- * Advanced Rogue
- * Copyright (C) 1984, 1985 Michael Morgan, Ken Dalka and AT&T
- * All rights reserved.
- *
- * Based on "Rogue: Exploring the Dungeons of Doom"
- * Copyright (C) 1980, 1981 Michael Toy, Ken Arnold and Glenn Wichman
- * All rights reserved.
- *
- * See the file LICENSE.TXT for full copyright and licensing information.
+ * @(#)command.c	3.45 (Berkeley) 6/15/81
  */
 
 #include "curses.h"
-#include <limits.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <signal.h>
-#include "mach_dep.h"
 #include "rogue.h"
 
 /*
@@ -24,73 +15,39 @@
  *	Process the user commands
  */
 
+char countch = FALSE, direction = FALSE, newcount = FALSE;
+
 command()
 {
     register char ch;
     register int ntimes = 1;			/* Number of player moves */
-    static char countch, direction, newcount = FALSE;
-    struct linked_list *item;
-    bool an_after = FALSE;
 
-    if (on(player, ISHASTE)) {
-	ntimes++;
-	turns--;	/* correct for later */
-    }
-    if (on(player, ISSLOW) || on(player, ISDANCE)) {
-	if (player.t_turn != TRUE) {
-	    ntimes--;
-	    turns++;
-	    an_after = TRUE;
-	}
-	player.t_turn ^= TRUE;
-    }
-
+    if (on(player, ISHASTE)) ntimes++;
     /*
      * Let the daemons start up
      */
     do_daemons(BEFORE);
     do_fuses(BEFORE);
-    while (ntimes-- > 0)
-    {	
-	/* One more tick of the clock. */
-	if ((++turns % DAYLENGTH) == 0) {
-	    daytime ^= TRUE;
-	    if (levtype == OUTSIDE) {
-		if (daytime) msg("The sun rises above the horizon");
-		else msg("The sun sinks below the horizon");
-	    }
-	    light(&hero);
-	}
-
-	look(after, FALSE);
-	if (!running) door_stop = FALSE;
+    while (ntimes--)
+    {
+	look(TRUE);
+	if (!running)
+	    door_stop = FALSE;
+	status();
 	lastscore = purse;
 	wmove(cw, hero.y, hero.x);
-	if (!((running || count) && jump)) {
-	    status(FALSE);
-	    wmove(cw, hero.y, hero.x);
+	if (!((running || count) && jump))
 	    draw(cw);			/* Draw screen */
-	}
 	take = 0;
 	after = TRUE;
 	/*
 	 * Read command or continue run
 	 */
+	if (wizard)
+	    waswizard = TRUE;
 	if (!no_command)
 	{
-	    if (running) {
-		/* If in a corridor or maze, if we are at a turn with only one
-		 * way to go, turn that way.
-		 */
-		if ((winat(hero.y, hero.x) == PASSAGE || levtype == MAZELEV) &&
-		    off(player, ISHUH) && (off(player, ISBLIND))) {
-		    int y, x;
-		    if (getdelta(runch, &y, &x) == TRUE) {
-			corr_move(y, x);
-		    }
-		}
-	        ch = runch;
-	    }
+	    if (running) ch = runch;
 	    else if (count) ch = countch;
 	    else
 	    {
@@ -99,7 +56,7 @@ command()
 		    msg("");
 	    }
 	}
-	else ch = '.';
+	else ch = ' ';
 	if (no_command)
 	{
 	    if (--no_command == 0)
@@ -130,26 +87,15 @@ command()
 		    case 'H': case 'J': case 'K': case 'L':
 		    case 'Y': case 'U': case 'B': case 'N':
 		    case 'q': case 'r': case 's': case 'f':
-		    case 't': case 'C': case 'I': case '.':
+		    case 't': case 'C': case 'I': case ' ':
 		    case 'z': case 'p':
 			break;
 		    default:
 			count = 0;
 		}
 	    }
-
-	    /* Save current direction */
-	    if (!running) /* If running, it is already saved */
-	    switch (ch) {
-		case 'h': case 'j': case 'k': case 'l':
-		case 'y': case 'u': case 'b': case 'n':
-		case 'H': case 'J': case 'K': case 'L':
-		case 'Y': case 'U': case 'B': case 'N':
-		    runch = tolower(ch);
-	    }
-
-	    /* Perform the action */
-	    switch (ch) {
+	    switch (ch)
+	    {
 		case 'f':
 		    if (!on(player, ISBLIND))
 		    {
@@ -194,186 +140,134 @@ command()
 		when 'B' : do_run('b');
 		when 'N' : do_run('n');
 		when 't':
-		    if((item=get_item(pack,"throw", ALL)) != NULL && get_dir())
-			missile(delta.y, delta.x, item, &player);
-		    else
+		    if (!get_dir())
 			after = FALSE;
+		    else
+			missile(delta.y, delta.x);
 		when 'Q' : after = FALSE; quit(-1);
-		when 'i' : after = FALSE; inventory(pack, ALL);
+		when 'i' : after = FALSE; inventory(pack, 0);
 		when 'I' : after = FALSE; picky_inven();
-		when 'd' : drop(NULL);
-		when 'P' : grab(hero.y, hero.x);
-		when 'q' : quaff(-1, NULL, TRUE);
-		when 'r' : read_scroll(-1, NULL, TRUE);
+		when 'd' : drop();
+		when 'q' : quaff();
+		when 'r' : read_scroll();
 		when 'e' : eat();
 		when 'w' : wield();
 		when 'W' : wear();
 		when 'T' : take_off();
+		when 'P' : ring_on();
+		when 'R' : ring_off();
 		when 'o' : option();
-		when 'c' : call(FALSE);
-		when 'm' : call(TRUE);
+		when 'c' : call();
 		when '>' : after = FALSE; d_level();
 		when '<' : after = FALSE; u_level();
 		when '?' : after = FALSE; help();
 		when '/' : after = FALSE; identify();
-		when CTRL('U') : use_mm(-1);
-		when CTRL('T') :
-		    if (get_dir()) steal();
-		    else after = FALSE;
-		when 'D' : dip_it();
-		when 'G' : gsense();
-		when '^' : set_trap(&player, hero.y, hero.x);
-		when 's' : search(FALSE, FALSE);
-		when 'z' : if (!do_zap(TRUE, NULL, FALSE))
-				after=FALSE;
-		when 'p' : pray();
-		when 'C' : cast();
-		when 'a' :
+		when 's' : search();
+		when 'z' : do_zap(FALSE);
+		when 'p':
 		    if (get_dir())
-			affect();
-		    else after = FALSE;
-		when 'v' : after = FALSE;
-			   msg("Advanced Rogue Version %s.",
-				release);
-		when CTRL('L') : after = FALSE; clearok(curscr, TRUE);
-				touchwin(cw); /* MMMMMMMMMM */
+			do_zap(TRUE);
+		    else
+			after = FALSE;
+		when 'v' : msg("Rogue version %s. (mctesq was here)", release);
+		when CTRL('L') : after = FALSE; clearok(curscr,TRUE);draw(curscr);
 		when CTRL('R') : after = FALSE; msg(huh);
 		when 'S' : 
 		    after = FALSE;
 		    if (save_game())
 		    {
-			wclear(cw);
+			wmove(cw, LINES-1, 0); 
+			wclrtoeol(cw);
 			draw(cw);
 			endwin();
 			exit(0);
 		    }
-		when '.' : ;			/* Rest command */
-		when ' ' : after = FALSE;	/* Do Nothing */
-#ifdef WIZARD
+		when ' ' : ;			/* Rest command */
 		when CTRL('P') :
 		    after = FALSE;
 		    if (wizard)
 		    {
 			wizard = FALSE;
-			trader = 0;
 			msg("Not wizard any more");
 		    }
 		    else
 		    {
-			if (waswizard || passwd())
+			if (wizard = passwd())
 			{
-			    msg("Welcome, oh mighty wizard.");
-			    wizard = waswizard = TRUE;
+			    msg("You are suddenly as smart as Ken Arnold in dungeon #%d", dnum);
+ 			    wizard = TRUE;
+			    waswizard = TRUE;
 			}
 			else
 			    msg("Sorry");
 		    }
-#endif
 		when ESCAPE :	/* Escape */
 		    door_stop = FALSE;
 		    count = 0;
 		    after = FALSE;
-		when '#':
-		    if (levtype == POSTLEV)		/* buy something */
-			buy_it();
-		    after = FALSE;
-		when '$':
-		    if (levtype == POSTLEV)		/* price something */
-			price_it();
-		    after = FALSE;
-		when '%':
-		    if (levtype == POSTLEV)		/* sell something */
-			sell_it();
-		    after = FALSE;
 		otherwise :
 		    after = FALSE;
-#ifdef WIZARD
 		    if (wizard) switch (ch)
 		    {
-			case 'M' : create_obj(TRUE, 0, 0);
-			when CTRL('W') : wanderer();
-			when CTRL('I') : inventory(lvl_obj, ALL);
-			when CTRL('Z') : whatis(NULL);
-			when CTRL('D') : level++; new_level(NORMLEV);
-			when CTRL('F') : overlay(stdscr,cw);
-			when CTRL('X') : overlay(mw,cw);
-			when CTRL('J') : teleport();
-			when CTRL('E') : sprintf(outstring,"food left: %d\tfood level: %d", 
-						food_left, foodlev);
-				       msg(outstring);
-			when CTRL('A') : activity();
-			when CTRL('C') : 
-			{
-			    int tlev;
-			    prbuf[0] = '\0';
-			    msg("Which level? ");
-			    if(get_str(prbuf,cw) == NORM) {
-				tlev = atoi(prbuf);
-				if(tlev < 1) {
-				    mpos = 0;
-				    msg("Illegal level.");
-				}
-				else if (tlev > 199) {
-					levtype = MAZELEV;
-					level = tlev - 200 + 1;
-				}
-				else if (tlev > 99) {
-					levtype = POSTLEV;
-					level = tlev - 100 + 1;
-				} 
-				else {
-					levtype = NORMLEV;
-					level = tlev;
-				}
-				new_level(levtype);
-			    }
-			}
+			case '@' : msg("@ %d,%d", hero.y, hero.x);
+			when 'C' : create_obj();
+			when CTRL('I') : inventory(lvl_obj, 0);
+			when CTRL('W') : whatis();
+			when CTRL('D') : level++; new_level();
+			when CTRL('U') : level--; new_level();
+			when CTRL('F') : show_win(stdscr, "--More (level map)--");
+			when CTRL('X') : show_win(mw, "--More (monsters)--");
+			when CTRL('T') : teleport();
+			when CTRL('E') : msg("food left: %d", food_left);
+			when CTRL('A') : msg("%d things in your pack", inpack);
+			when CTRL('C') : add_pass();
 			when CTRL('N') :
 			{
-			    if ((item=get_item(pack, "charge", STICK)) != NULL){
-				(OBJPTR(item))->o_charges=10000;
-			    }
+			    register struct linked_list *item;
+
+			    if ((item = get_item("charge", STICK)) != NULL)
+				((struct object *) ldata(item))->o_charges = 10000;
 			}
 			when CTRL('H') :
 			{
 			    register int i;
+			    register struct linked_list *item;
 			    register struct object *obj;
 
 			    for (i = 0; i < 9; i++)
-				raise_level(TRUE);
+				raise_level();
 			    /*
-			     * Give the rogue a sword 
+			     * Give the rogue a sword (+1,+1)
 			     */
-			    if(cur_weapon==NULL || cur_weapon->o_type!=RELIC) {
-				item = spec_item(WEAPON, TWOSWORD, 5, 5);
-				add_pack(item, TRUE);
-				cur_weapon = OBJPTR(item);
-				cur_weapon->o_flags |= (ISKNOW | ISPROT);
-			    }
+			    item = new_item(sizeof *obj);
+			    obj = (struct object *) ldata(item);
+			    obj->o_type = WEAPON;
+			    obj->o_which = TWOSWORD;
+			    init_weapon(obj, SWORD);
+			    obj->o_hplus = 1;
+			    obj->o_dplus = 1;
+			    add_pack(item, TRUE);
+			    cur_weapon = obj;
 			    /*
 			     * And his suit of armor
 			     */
-			    if (player.t_ctype == C_THIEF)
-				item = spec_item(ARMOR, STUDDED_LEATHER, 10, 0);
-			    else
-				item = spec_item(ARMOR, PLATE_ARMOR, 7, 0);
-			    obj = OBJPTR(item);
-			    obj->o_flags |= (ISKNOW | ISPROT);
-			    obj->o_weight = armors[PLATE_ARMOR].a_wght;
+			    item = new_item(sizeof *obj);
+			    obj = (struct object *) ldata(item);
+			    obj->o_type = ARMOR;
+			    obj->o_which = PLATE_MAIL;
+			    obj->o_ac = -5;
+			    obj->o_flags |= ISKNOW;
 			    cur_armor = obj;
 			    add_pack(item, TRUE);
-			    purse += 20000;
 			}
 			otherwise :
 			    msg("Illegal command '%s'.", unctrl(ch));
 			    count = 0;
 		    }
 		    else
-#endif
 		    {
 			msg("Illegal command '%s'.", unctrl(ch));
 			count = 0;
-			after = FALSE;
 		    }
 	    }
 	    /*
@@ -384,43 +278,28 @@ command()
 	}
 	/*
 	 * If he ran into something to take, let him pick it up.
-	 * unless its a trading post
 	 */
-	if (auto_pickup && take != 0 && levtype != POSTLEV)
+	if (take != 0)
 	    pick_up(take);
 	if (!running)
 	    door_stop = FALSE;
-
-	/* If after is true, mark an_after as true so that if
-	 * we are hasted, the first "after" will be noted.
-	 * if after is FALSE then stay in this loop
-	 */
-	if (after) an_after = TRUE;
-	else ntimes++;
     }
-
     /*
      * Kick off the rest if the daemons and fuses
      */
-    if (an_after)
+    if (after)
     {
-	/* 
-	 * If player is infested, take off a hit point 
-	 */
-	if (on(player, HASINFEST)) {
-	    if ((pstats.s_hpt -= infest_dam) <= 0) death(D_INFESTATION);
-	}
-	/* 
-	 * if player has body rot then take off five hits 
-	 */
-	if (on(player, DOROT)) {
-	     if ((pstats.s_hpt -= 5) <= 0) death(D_ROT);
-	}
+	look(FALSE);
 	do_daemons(AFTER);
 	do_fuses(AFTER);
-	if (!((running || count) && jump)) look(FALSE, FALSE);
-
-
+	if (ISRING(LEFT, R_SEARCH))
+	    search();
+	else if (ISRING(LEFT, R_TELEPORT) && rnd(100) < 2)
+	    teleport();
+	if (ISRING(RIGHT, R_SEARCH))
+	    search();
+	else if (ISRING(RIGHT, R_TELEPORT) && rnd(100) < 2)
+	    teleport();
     }
 }
 
@@ -430,21 +309,21 @@ command()
  */
 
 void
-quit(int sig)
+quit(int p)
 {
     /*
      * Reset the signal in case we got here via an interrupt
      */
-    if (signal(SIGINT, &quit) != &quit)
+    if (signal(SIGINT, quit) != quit)
 	mpos = 0;
-    msg("Really quit? ");
+    msg("Really quit?");
     draw(cw);
     if (readchar() == 'y')
     {
 	clear();
 	move(LINES-1, 0);
 	draw(stdscr);
-	score(pstats.s_exp + (long) purse, CHICKEN, 0);
+	score(purse, 1);
 	exit(0);
     }
     else
@@ -452,42 +331,22 @@ quit(int sig)
 	signal(SIGINT, quit);
 	wmove(cw, 0, 0);
 	wclrtoeol(cw);
-	status(FALSE);
+	status();
 	draw(cw);
 	mpos = 0;
 	count = 0;
-	running = FALSE;
     }
 }
-
-/*
- * bugkill:
- *	killed by a program bug instead of voluntarily.
- */
-
-void
-bugkill(sig)
-int sig;
-{
-    signal(sig, quit);	/* If we get it again, give up */
-    death(D_SIGNAL);	/* Killed by a bug */
-}
-
 
 /*
  * search:
  *	Player gropes about him to find hidden things.
  */
 
-search(is_thief, door_chime)
-register bool is_thief, door_chime;
+search()
 {
     register int x, y;
-    register char ch,	/* The trap or door character */
-		 sch,	/* Trap or door character (as seen on screen) */
-		 mch;	/* Monster, if a monster is on the trap or door */
-    register struct linked_list *item;
-    register struct thing *mp; /* Status on surrounding monster */
+    register char ch;
 
     /*
      * Look all around the hero, if there is something hidden there,
@@ -498,63 +357,33 @@ register bool is_thief, door_chime;
     for (x = hero.x - 1; x <= hero.x + 1; x++)
 	for (y = hero.y - 1; y <= hero.y + 1; y++)
 	{
-	    if (y==hero.y && x==hero.x)
-		continue;
-
-	    /* Mch and ch will be the same unless there is a monster here */
-	    mch = winat(y, x);
-	    ch = mvwinch(stdscr, y, x);
-	    sch = mvwinch(cw, y, x);	/* What's on the screen */
-
-	    if (door_chime == FALSE && isatrap(ch)) {
+	    ch = winat(y, x);
+	    switch (ch)
+	    {
+		case SECRETDOOR:
+		    if (rnd(100) < 20) {
+			mvaddch(y, x, DOOR);
+			count = 0;
+		    }
+		    break;
+		case TRAP:
+		{
 		    register struct trap *tp;
 
-		    /* Is there a monster on the trap? */
-		    if (mch != ch && (item = find_mons(y, x)) != NULL) {
-			mp = THINGPTR(item);
-			if (sch == mch) sch = mp->t_oldch;
-		    }
-		    else mp = NULL;
-
-		    /* 
-		     * is this one found already?
-		     */
-		    if (isatrap(sch)) 
-			continue;	/* give him chance for other traps */
+		    if (mvwinch(cw, y, x) == TRAP)
+			break;
+		    if (rnd(100) > 50)
+			break;
 		    tp = trap_at(y, x);
-		    /* 
-		     * if the thief set it then don't display it.
-		     * if its not a thief he has 50/50 shot
-		     */
-		    if((tp->tr_flags&ISTHIEFSET) || (!is_thief && rnd(100)>50))
-			continue;	/* give him chance for other traps */
 		    tp->tr_flags |= ISFOUND;
-
-		    /* Let's update the screen */
-		    if (mp != NULL && mvwinch(cw, y, x) == mch)
-			mp->t_oldch = ch; /* Will change when monst moves */
-		    else mvwaddch(cw, y, x, ch);
-
+		    mvwaddch(cw, y, x, TRAP);
 		    count = 0;
 		    running = FALSE;
 		    msg(tr_name(tp->tr_type));
-	    }
-	    else if (ch == SECRETDOOR) {
-		if (door_chime == TRUE || (!is_thief && rnd(100) < 20)) {
-		    /* Is there a monster on the door? */
-		    if (mch != ch && (item = find_mons(y, x)) != NULL) {
-			mp = THINGPTR(item);
-
-			/* Screen will change when monster moves */
-			if (sch == mch) mp->t_oldch = ch;
-		    }
-		    mvaddch(y, x, DOOR);
-		    count = 0;
 		}
 	    }
 	}
 }
-
 
 /*
  * help:
@@ -564,9 +393,6 @@ register bool is_thief, door_chime;
 help()
 {
     register struct h_list *strp = helpstr;
-#ifdef WIZARD
-    struct h_list *wizp = wiz_help;
-#endif
     register char helpch;
     register int cnt;
 
@@ -577,30 +403,20 @@ help()
      * If its not a *, print the right help string
      * or an error if he typed a funny character.
      */
-    if (helpch != '*') {
+    if (helpch != '*')
+    {
 	wmove(cw, 0, 0);
-	while (strp->h_ch) {
-	    if (strp->h_ch == helpch) {
-		sprintf(outstring,"%s%s", unctrl(strp->h_ch), strp->h_desc);
-		msg(outstring);
-		return;
+	while (strp->h_ch)
+	{
+	    if (strp->h_ch == helpch)
+	    {
+		msg("%s%s", unctrl(strp->h_ch), strp->h_desc);
+		break;
 	    }
 	    strp++;
 	}
-#ifdef WIZARD
-	if (wizard) {
-	    while (wizp->h_ch) {
-		if (wizp->h_ch == helpch) {
-		    sprintf(outstring,"%s%s", unctrl(wizp->h_ch), wizp->h_desc);
-		    msg(outstring);
-		    return;
-		}
-		wizp++;
-	    }
-	}
-#endif
-
-	msg("Unknown character '%s'", unctrl(helpch));
+	if (strp->h_ch != helpch)
+	    msg("Unknown character '%s'", unctrl(helpch));
 	return;
     }
     /*
@@ -609,47 +425,25 @@ help()
      */
     wclear(hw);
     cnt = 0;
-    while (strp->h_ch) {
+    while (strp->h_ch)
+    {
 	mvwaddstr(hw, cnt % 23, cnt > 22 ? 40 : 0, unctrl(strp->h_ch));
 	waddstr(hw, strp->h_desc);
+	cnt++;
 	strp++;
-	if (++cnt >= 46 && strp->h_ch) {
-	    wmove(hw, LINES-1, 0);
-	    wprintw(hw, morestr);
-	    draw(hw);
-	    wait_for(hw,' ');
-	    wclear(hw);
-	    cnt = 0;
-	}
     }
-#ifdef WIZARD
-    if (wizard) {
-	while (wizp->h_ch) {
-	    mvwaddstr(hw, cnt % 23, cnt > 22 ? 40 : 0, unctrl(wizp->h_ch));
-	    waddstr(hw, wizp->h_desc);
-	    wizp++;
-	    if (++cnt >= 46 && wizp->h_ch) {
-		wmove(hw, LINES-1, 0);
-		wprintw(hw, morestr);
-		draw(hw);
-		wait_for(hw,' ');
-		wclear(hw);
-		cnt = 0;
-	    }
-	}
-    }
-#endif
     wmove(hw, LINES-1, 0);
-    wprintw(hw, spacemsg);
+    wprintw(hw, "--Press space to continue--");
     draw(hw);
-    wait_for(hw,' ');
+    wait_for(' ');
     wclear(hw);
     draw(hw);
     wmove(cw, 0, 0);
     wclrtoeol(cw);
-    status(FALSE);
+    status();
     touchwin(cw);
 }
+
 /*
  * identify:
  *	Tell the player what a certain thing is.
@@ -657,8 +451,7 @@ help()
 
 identify()
 {
-    register char ch;
-    const char *str;
+    register char ch, *str;
 
     msg("What do you want identified? ");
     ch = readchar();
@@ -668,48 +461,32 @@ identify()
 	msg("");
 	return;
     }
-    if (isalpha(ch))
-	str = monsters[id_monst(ch)].m_name;
+    if (isalpha(ch) && isupper(ch))
+	str = monsters[ch-'A'].m_name;
     else switch(ch)
     {
 	case '|':
 	case '-':
-	    str = (levtype == OUTSIDE) ? "boundary of sector"
-				       : "wall of a room";
-	when GOLD:	str = "gold";
-	when STAIRS :	str = (levtype == OUTSIDE) ? "entrance to a dungeon"
-						   : "passage leading down";
-	when DOOR:	str = "door";
-	when FLOOR:	str = (levtype == OUTSIDE) ? "meadow" : "room floor";
-	when VPLAYER:	str = "the hero of the game ---> you";
-	when IPLAYER:	str = "you (but invisible)";
-	when PASSAGE:	str = "passage";
-	when POST:	str = "trading post";
-	when POOL:	str = (levtype == OUTSIDE) ? "lake"
-						   : "a shimmering pool";
-	when TRAPDOOR:	str = "trapdoor";
-	when ARROWTRAP:	str = "arrow trap";
-	when SLEEPTRAP:	str = "sleeping gas trap";
-	when BEARTRAP:	str = "bear trap";
-	when TELTRAP:	str = "teleport trap";
-	when DARTTRAP:	str = "dart trap";
-	when MAZETRAP:	str = "entrance to a maze";
-	when FOREST:	str = "forest";
-	when POTION:	str = "potion";
-	when SCROLL:	str = "scroll";
-	when FOOD:	str = "food";
-	when WEAPON:	str = "weapon";
-	when ' ' :	str = "solid rock";
-	when ARMOR:	str = "armor";
-	when MM:	str = "miscellaneous magic";
-	when RING:	str = "ring";
-	when STICK:	str = "wand or staff";
-	when SECRETDOOR:str = "secret door";
-	when RELIC:	str = "artifact";
-	otherwise:	str = "unknown character";
+	    str = "wall of a room";
+	when GOLD: str = "gold";
+	when STAIRS : str = "passage leading down";
+	when DOOR: str = "door";
+	when FLOOR: str = "room floor";
+	when PLAYER: str = "you";
+	when PASSAGE: str = "passage";
+	when TRAP: str = "trap";
+	when POTION: str = "potion";
+	when SCROLL: str = "scroll";
+	when FOOD: str = "food";
+	when WEAPON: str = "weapon";
+	when ' ' : str = "solid rock";
+	when ARMOR: str = "armor";
+	when AMULET: str = "The Amulet of Yendor";
+	when RING: str = "ring";
+	when STICK: str = "wand or staff";
+	otherwise: str = "unknown character";
     }
-    sprintf(outstring,"'%s' : %s", unctrl(ch), str);
-    msg(outstring);
+    msg("'%s' : %s", unctrl(ch), str);
 }
 
 /*
@@ -719,41 +496,13 @@ identify()
 
 d_level()
 {
-    bool no_phase=FALSE;
-
-
-    /* If we are at a top-level trading post, we probably can't go down */
-    if (levtype == POSTLEV && level == 0 && rnd(100) < 80) {
+    if (winat(hero.y, hero.x) != STAIRS)
 	msg("I see no way down.");
-	return;
+    else
+    {
+	level++;
+	new_level();
     }
-
-    if (winat(hero.y, hero.x) != STAIRS) {
-	if (off(player, CANINWALL) ||	/* Must use stairs if can't phase */
-	    (levtype == OUTSIDE && rnd(100) < 90)) {
-	    msg("I see no way down.");
-	    return;
-	}
-
-	/* Is there any dungeon left below? */
-	if (level >= nfloors) {
-	    msg("There is only solid rock below.");
-	    return;
-	}
-
-	extinguish(unphase);	/* Using phase to go down gets rid of it */
-	no_phase = TRUE;
-    }
-
-    /* Is this the bottom? */
-    if (level >= nfloors) {
-	msg("The stairway only goes up.");
-	return;
-    }
-
-    level++;
-    new_level(NORMLEV);
-    if (no_phase) unphase();
 }
 
 /*
@@ -763,56 +512,19 @@ d_level()
 
 u_level()
 {
-    bool no_phase = FALSE;
-    register struct linked_list *item;
-    struct thing *tp;
-    struct object *obj;
-
-    if (winat(hero.y, hero.x) != STAIRS) {
-	if (off(player, CANINWALL)) {	/* Must use stairs if can't phase */
-	    msg("I see no way up.");
+    if (winat(hero.y, hero.x) == STAIRS)
+    {
+	if (amulet)
+	{
+	    level--;
+	    if (level == 0)
+		total_winner();
+	    new_level();
+	    msg("You feel a wrenching sensation in your gut.");
 	    return;
 	}
-
-	extinguish(unphase);
-	no_phase = TRUE;
     }
-
-    if (level == 0) {
-	msg("The stairway only goes down.");
-	return;
-    }
-
-    /*
-     * does he have the item he was quested to get?
-     */
-    if (level == 1) {
-	for (item = pack; item != NULL; item = next(item)) {
-	    obj = OBJPTR(item);
-	    if (obj->o_type == RELIC && obj->o_which == quest_item)
-		total_winner();
-	}
-    }
-    /*
-     * check to see if he trapped a UNIQUE, If he did then put it back
-     * in the monster table for next time
-     */
-    for (item = tlist; item != NULL; item = next(item)) {
-	tp = THINGPTR(item);
-	if (on(*tp, ISUNIQUE)) 
-	    monsters[tp->t_index].m_normal = TRUE;
-    }
-    t_free_list(tlist);	/* Monsters that fell below are long gone! */
-
-    if (levtype != POSTLEV) level--;
-    if (level > 0) new_level(NORMLEV);
-    else {
-	level = -1;	/* Indicate that we are new to the outside */
-	msg("You emerge into the %s", daytime ? "light" : "night");
-	new_level(OUTSIDE); 	/* Leaving the dungeon */
-    }
-
-    if (no_phase) unphase();
+    msg("I see no way up.");
 }
 
 /*
@@ -821,49 +533,71 @@ u_level()
 
 shell()
 {
+    register int pid;
+    register char *sh;
+    int ret_status;
+
     /*
      * Set the terminal back to original mode
      */
+    sh = getenv("SHELL");
     wclear(hw);
     wmove(hw, LINES-1, 0);
     draw(hw);
     endwin();
     in_shell = TRUE;
     fflush(stdout);
-    
-    md_shellescape();
-
-    printf(retstr);
-    fflush(stdout);
-    noecho();
-    crmode();
-    in_shell = FALSE;
-    wait_for(hw,'\n');
-    clearok(cw, TRUE);
-    touchwin(cw);
-    wmove(cw,0,0);
-    draw(cw);
+    /*
+     * Fork and do a shell
+     */
+    while((pid = fork()) < 0)
+	sleep(1);
+    if (pid == 0)
+    {
+	/*
+	 * Set back to original user, just in case
+	 */
+	setuid(getuid());
+	setgid(getgid());
+	execl(sh == NULL ? "/bin/sh" : sh, "shell", "-i", 0);
+	perror("No shelly");
+	exit(-1);
+    }
+    else
+    {
+	signal(SIGINT, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	while (wait(&ret_status) != pid)
+	    continue;
+	signal(SIGINT, endit);
+	signal(SIGQUIT, endit);
+	printf("\n[Press return to continue]");
+	noecho();
+	crmode();
+	in_shell = FALSE;
+	wait_for('\n');
+	clearok(cw, TRUE);
+	touchwin(cw);
+    }
 }
 
 /*
  * allow a user to call a potion, scroll, or ring something
  */
-call(mark)
-bool mark;
+call()
 {
     register struct object *obj;
     register struct linked_list *item;
     register char **guess, *elsewise;
     register bool *know;
 
-    if (mark) item = get_item(pack, "mark", ALL);
-    else item = get_item(pack, "call", CALLABLE);
+    item = get_item("call", CALLABLE);
     /*
      * Make certain that it is somethings that we want to wear
      */
     if (item == NULL)
 	return;
-    obj = OBJPTR(item);
+    obj = (struct object *) ldata(item);
     switch (obj->o_type)
     {
 	case RING:
@@ -886,46 +620,30 @@ bool mark;
 	    know = ws_know;
 	    elsewise = (ws_guess[obj->o_which] != NULL ?
 			ws_guess[obj->o_which] : ws_made[obj->o_which]);
-	when MM:
-	    guess = m_guess;
-	    know = m_know;
-	    elsewise = (m_guess[obj->o_which] != NULL ?
-			m_guess[obj->o_which] : NULL);
 	otherwise:
-	    if (!mark) {
-		msg("You can't call that anything.");
-		return;
-	    }
-	    else know = (bool *) 0;
+	    msg("You can't call that anything");
+	    return;
     }
-    if ((obj->o_flags & ISPOST)	|| (know && know[obj->o_which]) && !mark) {
-	msg("That has already been identified.");
+    if (know[obj->o_which])
+    {
+	msg("That has already been identified");
 	return;
     }
-    if (mark) {
-	if (obj->o_mark[0]) {
-	    addmsg(terse ? "M" : "Was m");
-	    msg("arked \"%s\"", obj->o_mark);
-	}
-	msg(terse ? "Mark it: " : "What do you want to mark it? ");
-	prbuf[0] = '\0';
-    }
-    else {
-	addmsg(terse ? "C" : "Was c");
-	msg("alled \"%s\"", elsewise);
-	msg(terse ? "Call it: " : "What do you want to call it? ");
-	if (guess[obj->o_which] != NULL)
-	    free(guess[obj->o_which]);
-	strcpy(prbuf, elsewise);
-    }
-    if (get_str(prbuf, cw) == NORM) {
-	if (mark) {
-	    strncpy(obj->o_mark, prbuf, MARKLEN-1);
-	    obj->o_mark[MARKLEN-1] = '\0';
-	}
-	else {
-	    guess[obj->o_which] = new((unsigned int) strlen(prbuf) + 1);
-	    strcpy(guess[obj->o_which], prbuf);
-	}
+    if (terse)
+	addmsg("C");
+    else
+	addmsg("Was c");
+    msg("alled \"%s\"", elsewise);
+    if (terse)
+	msg("Call it: ");
+    else
+	msg("What do you want to call it? ");
+    if (guess[obj->o_which] != NULL)
+	free(guess[obj->o_which]);
+    strcpy(prbuf, elsewise);
+    if (get_str(prbuf, cw) == NORM)
+    {
+	guess[obj->o_which] = malloc((unsigned int) strlen(prbuf) + 1);
+	strcpy(guess[obj->o_which], prbuf);
     }
 }

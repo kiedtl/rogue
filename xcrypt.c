@@ -1,7 +1,7 @@
 /*
  * FreeSec: libcrypt
  *
- * Copyright (C) 1994 David Burren
+ * Copyright (c) 1994 David Burren
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -12,14 +12,14 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name(s) of the author(s) nor the names of other contributors
+ * 4. Neither the name of the author nor the names of other contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) AND CONTRIBUTORS ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR(S) OR CONTRIBUTORS BE LIABLE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
  * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
@@ -50,6 +50,8 @@
  */
 
 #include <sys/types.h>
+#include <sys/param.h>
+#include <pwd.h>
 #include <string.h>
 
 #ifdef DEBUG
@@ -360,8 +362,8 @@ des_setkey(key)
 	if (!des_initialised)
 		des_init();
 
-	rawkey0 = md_ntohl(*(unsigned int *) key);
-	rawkey1 = md_ntohl(*(unsigned int *) (key + 4));
+	rawkey0 = ntohl(*(unsigned int *) key);
+	rawkey1 = ntohl(*(unsigned int *) (key + 4));
 
 	if ((rawkey0 | rawkey1)
 	    && rawkey0 == old_rawkey0
@@ -566,12 +568,12 @@ des_cipher(in, out, salt, count)
 	setup_salt(salt);
 
 	memcpy(x, in, sizeof x);
-	rawl = md_ntohl(x[0]);
-	rawr = md_ntohl(x[1]);
+	rawl = ntohl(x[0]);
+	rawr = ntohl(x[1]);
 	retval = do_des(rawl, rawr, &l_out, &r_out, count);
 
-	x[0] = md_htonl(l_out);
-	x[1] = md_htonl(r_out);
+	x[0] = htonl(l_out);
+	x[1] = htonl(r_out);
 	memcpy(out, x, sizeof x);
 	return(retval);
 }

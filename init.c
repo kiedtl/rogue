@@ -1,118 +1,367 @@
 /*
  * global variable initializaton
  *
- * Advanced Rogue
- * Copyright (C) 1984, 1985 Michael Morgan, Ken Dalka and AT&T
- * All rights reserved.
- *
- * Based on "Rogue: Exploring the Dungeons of Doom"
- * Copyright (C) 1980, 1981 Michael Toy, Ken Arnold and Glenn Wichman
- * All rights reserved.
- *
- * See the file LICENSE.TXT for full copyright and licensing information.
+ * @(#)init.c	3.33 (Berkeley) 6/15/81
  */
 
 #include "curses.h"
 #include <ctype.h>
 #include "rogue.h"
-#include "mach_dep.h"
 
+bool playing = TRUE, running = FALSE, wizard = FALSE;
+bool notify = TRUE, fight_flush = FALSE, terse = FALSE, door_stop = FALSE;
+bool jump = FALSE, slow_invent = FALSE, firstmove = FALSE, askme = FALSE;
+bool amulet = FALSE, in_shell = FALSE;
+struct linked_list *lvl_obj = NULL, *mlist = NULL;
+struct object *cur_weapon = NULL;
+int mpos = 0, no_move = 0, no_command = 0, level = 1, purse = 0, inpack = 0;
+int total = 0, no_food = 0, count = 0, fung_hit = 0, quiet = 0;
+int food_left = HUNGERTIME, group = 1, hungry_state = 0;
+int lastscore = -1;
 
-char *rainbow[NCOLORS] = {
+struct thing player;
+struct room rooms[MAXROOMS];
+struct room *oldrp;
+struct stats max_stats; 
+struct object *cur_armor;
+struct object *cur_ring[2];
+bool after;
+bool waswizard;
+coord oldpos;                            /* Position before last look() call */
+coord delta;                             /* Change indicated to get_dir()    */
 
-"Amber",		"Aquamarine",		"Beige",
-"Black",		"Blue",			"Brown",
-"Clear",		"Crimson",		"Ecru",
-"Gold",			"Green",		"Grey",
-"Indigo",		"Khaki",		"Lavender",
-"Magenta",		"Orange",		"Pink",
-"Plaid",		"Purple",		"Red",
-"Silver",		"Saffron",		"Scarlet",
-"Tan",			"Tangerine", 		"Topaz",
-"Turquoise",		"Vermilion",		"Violet",
-"White",		"Yellow",
-};
-
-char *sylls[NSYLLS] = {
-    "a",   "ab",  "ag",  "aks", "ala", "an",  "ankh","app", "arg", "arze",
-    "ash", "ban", "bar", "bat", "bek", "bie", "bin", "bit", "bjor",
-    "blu", "bot", "bu",  "byt", "comp","con", "cos", "cre", "dalf",
-    "dan", "den", "do",  "e",   "eep", "el",  "eng", "er",  "ere", "erk",
-    "esh", "evs", "fa",  "fid", "for", "fri", "fu",  "gan", "gar",
-    "glen","gop", "gre", "ha",  "he",  "hyd", "i",   "ing", "ion", "ip",
-    "ish", "it",  "ite", "iv",  "jo",  "kho", "kli", "klis","la",  "lech",
-    "man", "mar", "me",  "mi",  "mic", "mik", "mon", "mung","mur",
-    "nej", "nelg","nep", "ner", "nes", "nes", "nih", "nin", "o",   "od",
-    "ood", "org", "orn", "ox",  "oxy", "pay", "pet", "ple", "plu", "po",
-    "pot", "prok","re",  "rea", "rhov","ri",  "ro",  "rog", "rok", "rol",
-    "sa",  "san", "sat", "see", "sef", "seh", "shu", "ski", "sna",
-    "sne", "snik","sno", "so",  "sol", "sri", "sta", "sun", "ta",
-    "tab", "tem", "ther","ti",  "tox", "trol","tue", "turs","u",
-    "ulk", "um",  "un",  "uni", "ur",  "val", "viv", "vly", "vom", "wah",
-    "wed", "werg","wex", "whon","wun", "xo",  "y",   "yot", "yu",
-    "zant","zap", "zeb", "zim", "zok", "zon", "zum",
-};
-
-char *stones[NSTONES] = {
-	"Agate",		"Alexandrite",		"Amethyst",
-	"Azurite",		"Bloodstone",		"Cairngorm",
-	"Carnelian",		"Chalcedony",		"Chrysoberyl",
-	"Chrysolite",		"Chrysoprase",		"Citrine",
-	"Coral",		"Diamond",		"Emerald",
-	"Garnet",		"Heliotrope",		"Hematite",
-	"Hyacinth",		"Jacinth",		"Jade",
-	"Jargoon",		"Jasper",		"Kryptonite",
-	"Lapus lazuli",		"Malachite",		"Mocca stone",
-	"Moonstone",		"Obsidian",		"Olivine",
-	"Onyx",			"Opal",			"Pearl",
-	"Peridot",		"Quartz",		"Rhodochrosite",
-	"Rhodolite",		"Ruby",			"Sapphire",
-	"Sardonyx",		"Serpintine",		"Spinel",
-	"Tiger eye",		"Topaz",		"Tourmaline",
-	"Turquoise",		"Zircon",
-};
-
-char *wood[NWOOD] = {
-	"Avocado wood",	"Balsa",	"Banyan",	"Birch",
-	"Cedar",	"Cherry",	"Cinnibar",	"Dogwood",
-	"Driftwood",	"Ebony",	"Eucalyptus",	"Hemlock",
-	"Ironwood",	"Mahogany",	"Manzanita",	"Maple",
-	"Oak",		"Pine",		"Redwood",	"Rosewood",
-	"Teak",		"Walnut",	"Zebra wood", 	"Persimmon wood",
-};
-
-char *metal[NMETAL] = {
-	"Aluminium",	"Bone",		"Brass",	"Bronze",
-	"Copper",	"Chromium",	"Iron",		"Lead",
-	"Magnesium",	"Pewter",	"Platinum",	"Silver",
-	"Steel",	"Tin",		"Titanium",	"Zinc",
-};
-
-
-
-
-/*
- * make sure all the percentages specified in the tables add up to the
- * right amounts
+bool s_know[MAXSCROLLS];         /* Does he know what a scroll does */
+bool p_know[MAXPOTIONS];         /* Does he know what a potion does */
+bool r_know[MAXRINGS];                   /* Does he know what a ring does
  */
-badcheck(name, magic, bound)
-char *name;
-register struct magic_item *magic;
-register int bound;
-{
-    register struct magic_item *end;
+bool ws_know[MAXSTICKS];         /* Does he know what a stick does */
 
-    if (magic[bound - 1].mi_prob == 1000)
-	return;
-    printf("\nBad percentages for %s:\n", name);
-    for (end = &magic[bound] ; magic < end ; magic++)
-	printf("%4d%% %s\n", magic->mi_prob, magic->mi_name);
-    printf(retstr);
-    fflush(stdout);
-    while (getchar() != '\n')
-	continue;
+char take;                               /* Thing the rogue is taking */
+char runch;                              /* Direction player is running */
+char whoami[80];                 /* Name of player */
+char fruit[80];                          /* Favorite fruit */
+char huh[80];                            /* The last message printed */
+int dnum;                                /* Dungeon number */
+char *s_names[MAXSCROLLS];               /* Names of the scrolls */
+char *p_colors[MAXPOTIONS];              /* Colors of the potions */
+char *r_stones[MAXRINGS];                /* Stone settings of the rings */
+char *a_names[MAXARMORS];                /* Names of armor types */
+char *ws_made[MAXSTICKS];                /* What sticks are made of */
+char *s_guess[MAXSCROLLS];               /* Players guess at what scroll is */
+char *p_guess[MAXPOTIONS];               /* Players guess at what potion is */
+char *r_guess[MAXRINGS];         /* Players guess at what ring is */
+char *ws_guess[MAXSTICKS];               /* Players guess at what wand is */
+char *ws_type[MAXSTICKS];                /* Is it a wand or a staff */
+char file_name[80];                      /* Save file name */
+char home[80];                           /* User's home directory */
+char prbuf[80];                          /* Buffer for sprintfs */
+char outbuf[BUFSIZ];                     /* Output buffer for stdout */
+int max_hp;                              /* Player's max hit points */
+int ntraps;                              /* Number of traps on this level */
+int max_level;                           /* Deepest player has gone */
+int seed;                                /* Random number seed */
+
+struct trap  traps[MAXTRAPS];
+
+
+#define ___ 1
+#define _x {1,1}
+struct monster monsters[26] = {
+	/* Name		 CARRY	FLAG    str, exp, lvl, amr, hpt, dmg */
+	{ "giant ant",	 0,	ISMEAN,	{ _x, 10,   2,   3, ___, "1d6" } },
+	{ "bat",	 0,	0,	{ _x,  1,   1,   3, ___, "1d2" } },
+	{ "centaur",	 15,	0,	{ _x, 15,   4,   4, ___, "1d6/1d6" } },
+	{ "dragon",	 100,	ISGREED,{ _x,9000, 10,  -1, ___, "1d8/1d8/3d10" } },
+	{ "floating eye",0,	0,	{ _x,  5,   1,   9, ___, "0d0" } },
+	{ "violet fungi",0,	ISMEAN,	{ _x, 85,   8,   3, ___, "000d0" } },
+	{ "gnome",	 10,	0,	{ _x,  8,   1,   5, ___, "1d6" } },
+	{ "hobgoblin",	 0,	ISMEAN,	{ _x,  3,   1,   5, ___, "1d8" } },
+	{ "invisible stalker",0,ISINVIS,{ _x,120,   8,   3, ___, "4d4" } },
+	{ "jackal",	 0,	ISMEAN,	{ _x,  2,   1,   7, ___, "1d2" } },
+	{ "kobold",	 0,	ISMEAN,	{ _x,  1,   1,   7, ___, "1d4" } },
+	{ "leprechaun",	 0,	0,	{ _x, 10,   3,   8, ___, "1d1" } },
+	{ "mimic",	 30,	0,	{ _x,140,   7,   7, ___, "3d4" } },
+	{ "nymph",	 100,	0,	{ _x, 40,   3,   9, ___, "0d0" } },
+	{ "orc",	 15,	ISBLOCK,{ _x,  5,   1,   6, ___, "1d8" } },
+	{ "purple worm", 70,	0,	{ _x,7000, 15,   6, ___, "2d12/2d4" } },
+	{ "quasit",	 30,	ISMEAN,	{ _x, 35,   3,   2, ___, "1d2/1d2/1d4" } },
+	{ "rust monster",0,	ISMEAN,	{ _x, 25,   5,   2, ___, "0d0/0d0" } },
+	{ "snake",	 0,	ISMEAN,	{ _x,  3,   1,   5, ___, "1d3" } },
+	{ "troll",	 50,	ISREGEN|ISMEAN,{ _x, 55,   6,   4, ___, "1d8/1d8/2d6" } },
+	{ "umber hulk",	 40,	ISMEAN,	{ _x,130,   8,   2, ___, "3d4/3d4/2d5" } },
+	{ "vampire",	 20,	ISREGEN|ISMEAN,{ _x,380,   8,   1, ___, "1d10" } },
+	{ "wraith",	 0,	0,	{ _x, 55,   5,   4, ___, "1d6" } },
+	{ "xorn",	 0,	ISMEAN,	{ _x,120,   7,  -2, ___, "1d3/1d3/1d3/4d6" } },
+	{ "yeti",	 30,	0,	{ _x, 50,   4,   6, ___, "1d6/1d6" } },
+	{ "zombie",	 0,	ISMEAN,	{ _x,  7,   2,   8, ___, "1d8" } }
+};
+#undef ___
+
+/*
+ * init_player:
+ *	roll up the rogue
+ */
+
+init_player()
+{
+    pstats.s_lvl = 1;
+    pstats.s_exp = 0L;
+    max_hp = pstats.s_hpt = 12;
+    if (rnd(100) == 7)
+    {
+	pstats.s_str.st_str = 18;
+	pstats.s_str.st_add = rnd(100) + 1;
+    }
+    else
+    {
+	pstats.s_str.st_str = 16;
+	pstats.s_str.st_add = 0;
+    }
+    strcpy(pstats.s_dmg,"1d4");
+    pstats.s_arm = 10;
+    max_stats = pstats;
+    pack = NULL;
 }
-
+
+/*
+ * Contains defintions and functions for dealing with things like
+ * potions and scrolls
+ */
+
+struct words rainbow[NCOLORS] = {
+    "Red",
+    "Blue",
+    "Green",
+    "Yellow",
+    "Black",
+    "Brown",
+    "Orange",
+    "Pink",
+    "Purple",
+    "Grey",
+    "White",
+    "Silver",
+    "Gold",
+    "Violet",
+    "Clear",
+    "Vermilion",
+    "Ecru",
+    "Turquoise",
+    "Magenta",
+    "Amber",
+    "Topaz",
+    "Plaid",
+    "Tan",
+    "Tangerine"
+};
+
+struct words sylls[NSYLLS] = {
+    "a", "ab", "ag", "aks", "ala", "an", "ankh", "app", "arg", "arze",
+    "ash", "ban", "bar", "bat", "bek", "bie", "bin", "bit", "bjor",
+    "blu", "bot", "bu", "byt", "comp", "con", "cos", "cre", "dalf",
+    "dan", "den", "do", "e", "eep", "el", "eng", "er", "ere", "erk",
+    "esh", "evs", "fa", "fid", "for", "fri", "fu", "gan", "gar",
+    "glen", "gop", "gre", "ha", "he", "hyd", "i", "ing", "ion", "ip",
+    "ish", "it", "ite", "iv", "jo", "kho", "kli", "klis", "la", "lech",
+    "man", "mar", "me", "mi", "mic", "mik", "mon", "mung", "mur",
+    "nej", "nelg", "nep", "ner", "nes", "nes", "nih", "nin", "o", "od",
+    "ood", "org", "orn", "ox", "oxy", "pay", "pet", "ple", "plu", "po",
+    "pot", "prok", "re", "rea", "rhov", "ri", "ro", "rog", "rok", "rol",
+    "sa", "san", "sat", "see", "sef", "seh", "shu", "ski", "sna",
+    "sne", "snik", "sno", "so", "sol", "sri", "sta", "sun", "ta",
+    "tab", "tem", "ther", "ti", "tox", "trol", "tue", "turs", "u",
+    "ulk", "um", "un", "uni", "ur", "val", "viv", "vly", "vom", "wah",
+    "wed", "werg", "wex", "whon", "wun", "xo", "y", "yot", "yu",
+    "zant", "zap", "zeb", "zim", "zok", "zon", "zum",
+};
+
+struct words stones[NSTONES] = {
+    "Agate",
+    "Alexandrite",
+    "Amethyst",
+    "Carnelian",
+    "Diamond",
+    "Emerald",
+    "Granite",
+    "Jade",
+    "Kryptonite",
+    "Lapus lazuli",
+    "Moonstone",
+    "Obsidian",
+    "Onyx",
+    "Opal",
+    "Pearl",
+    "Ruby",
+    "Saphire",
+    "Tiger eye",
+    "Topaz",
+    "Turquoise",
+};
+
+struct words wood[NWOOD] = {
+    "Avocado wood",
+    "Balsa",
+    "Banyan",
+    "Birch",
+    "Cedar",
+    "Cherry",
+    "Cinnibar",
+    "Driftwood",
+    "Ebony",
+    "Eucalyptus",
+    "Hemlock",
+    "Ironwood",
+    "Mahogany",
+    "Manzanita",
+    "Maple",
+    "Oak",
+    "Persimmon wood",
+    "Redwood",
+    "Rosewood",
+    "Teak",
+    "Walnut",
+    "Zebra wood",
+};
+
+struct words metal[NMETAL] = {
+    "Aluminium",
+    "Bone",
+    "Brass",
+    "Bronze",
+    "Copper",
+    "Iron",
+    "Lead",
+    "Pewter",
+    "Steel",
+    "Tin",
+    "Zinc",
+};
+
+struct magic_item things[NUMTHINGS] = {
+    { "",			27 },	/* potion */
+    { "",			27 },	/* scroll */
+    { "",			18 },	/* food */
+    { "",			 9 },	/* weapon */
+    { "",			 9 },	/* armor */
+    { "",			 5 },	/* ring */
+    { "",			 5 },	/* stick */
+};
+
+struct magic_item s_magic[MAXSCROLLS] = {
+    { "monster confusion",	 8, 170 },
+    { "magic mapping",		 5, 180 },
+    { "light",			10, 100 },
+    { "hold monster",		 2, 200 },
+    { "sleep",			 5,  50 },
+    { "enchant armor",		 8, 130 },
+    { "identify",		21, 100 },
+    { "scare monster",		 4, 180 },
+    { "gold detection",		 4, 110 },
+    { "teleportation",		 7, 175 },
+    { "enchant weapon",		10, 150 },
+    { "create monster",		 5,  75 },
+    { "remove curse",		 8, 105 },
+    { "aggravate monsters",	 1,  60 },
+    { "blank paper",		 1,  50 },
+    { "genocide",		 1, 200 },
+};
+
+struct magic_item p_magic[MAXPOTIONS] = {
+    { "confusion",		 8,  50 },
+    { "paralysis",		10,  50 },
+    { "poison",			 8,  50 },
+    { "gain strength",		15, 150 },
+    { "see invisible",		 2, 170 },
+    { "healing",		15, 130 },
+    { "monster detection",	 6, 120 },
+    { "magic detection",	 6, 105 },
+    { "raise level",		 2, 220 },
+    { "extra healing",		 5, 180 },
+    { "haste self",		 4, 200 },
+    { "restore strength",	14, 120 },
+    { "blindness",		 4,  50 },
+    { "thirst quenching",	 1,  50 },
+};
+
+struct magic_item r_magic[MAXRINGS] = {
+    { "protection",		 9, 200 },
+    { "add strength",		 9, 200 },
+    { "sustain strength",	 5, 180 },
+    { "searching",		10, 200 },
+    { "see invisible",		10, 175 },
+    { "adornment",		 1, 100 },
+    { "aggravate monster",	11, 100 },
+    { "dexterity",		 8, 220 },
+    { "increase damage",	 8, 220 },
+    { "regeneration",		 4, 260 },
+    { "slow digestion",		 9, 240 },
+    { "telportation",		 9, 100 },
+    { "stealth",		 7, 100 },
+};
+
+struct magic_item ws_magic[MAXSTICKS] = {
+    { "light",			12, 120 },
+    { "striking",		 9, 115 },
+    { "lightning",		 3, 200 },
+    { "fire",			 3, 200 },
+    { "cold",			 3, 200 },
+    { "polymorph",		15, 210 },
+    { "magic missile",		10, 170 },
+    { "haste monster",		 9,  50 },
+    { "slow monster",		11, 220 },
+    { "drain life",		 9, 210 },
+    { "nothing",		 1,  70 },
+    { "teleport away",		 5, 140 },
+    { "teleport to",		 5,  60 },
+    { "cancellation",		 5, 130 },
+};
+
+int a_class[MAXARMORS] = {
+    8,
+    7,
+    7,
+    6,
+    5,
+    4,
+    4,
+    3,
+};
+
+char *a_names[MAXARMORS] = {
+    "leather armor",
+    "ring mail",
+    "studded leather armor",
+    "scale mail",
+    "chain mail",
+    "splint mail",
+    "banded mail",
+    "plate mail",
+};
+
+int a_chances[MAXARMORS] = {
+    20,
+    35,
+    50,
+    63,
+    75,
+    85,
+    95,
+    100
+};
+
+/*
+ * init_things
+ *	Initialize the probabilities for types of things
+ */
+init_things()
+{
+    register struct magic_item *mp;
+
+    for (mp = &things[1]; mp <= &things[NUMTHINGS-1]; mp++)
+	mp->mi_prob += (mp-1)->mi_prob;
+    badcheck("things", things, NUMTHINGS);
+}
+
 /*
  * init_colors:
  *	Initialize the potion color scheme for this time
@@ -120,20 +369,16 @@ register int bound;
 
 init_colors()
 {
-    register int i, j;
+    register int i;
     register char *str;
-    bool used[NCOLORS];
 
-    for(i = 0; i < NCOLORS; i++)
-        used[i] = FALSE;
-
-    for (i = 0 ; i < MAXPOTIONS ; i++)
+    for (i = 0; i < MAXPOTIONS; i++)
     {
 	do
-	    j = rnd(NCOLORS);
-        until (!used[j]);
-        used[j] = TRUE;
-	p_colors[i] = rainbow[j];
+	    str = rainbow[rnd(NCOLORS)].w_string;
+	until (isupper(*str));
+	*str = tolower(*str);
+	p_colors[i] = str;
 	p_know[i] = FALSE;
 	p_guess[i] = NULL;
 	if (i > 0)
@@ -141,80 +386,7 @@ init_colors()
     }
     badcheck("potions", p_magic, MAXPOTIONS);
 }
-
-/*
- * init_materials:
- *	Initialize the construction materials for wands and staffs
- */
 
-init_materials()
-{
-    register int i, j;
-    register char *str;
-    bool metused[NMETAL], woodused[NWOOD];
-
-    for(i = 0; i < NWOOD; i++)
-        woodused[i] = FALSE;
-
-    for(i = 0; i < NMETAL; i++)
-        metused[i] = FALSE;
-
-    for (i = 0 ; i < MAXSTICKS ; i++)
-    {
-        for (;;)
-	    if (rnd(100) > 50)
-	    { 
-                j = rnd(NMETAL);
-
-                if (!metused[j])
-                {
-                    ws_type[i] = "wand";
-                    str = metal[j];
-                    metused[j] = TRUE;
-                    break;
-                }
-            }
-            else
-            {
-                j = rnd(NWOOD);
-
-                if (!woodused[j])
-                {
-                    ws_type[i] = "staff";
-                    str = wood[j];
-                    woodused[j] = TRUE;
-                    break;
-                }
-            }
-
-        ws_made[i] = str;
-	ws_know[i] = FALSE;
-	ws_guess[i] = NULL;
-	if (i > 0)
-		ws_magic[i].mi_prob += ws_magic[i-1].mi_prob;
-    }
-    badcheck("sticks", ws_magic, MAXSTICKS);
-}
-
-/*
- * do any initialization for miscellaneous magic
- */
-
-init_misc()
-{
-    register int i;
-
-    for (i=0; i < MAXMM; i++) {
-	m_know[i] = FALSE;
-	m_guess[i] = NULL;
-	if (i > 0)
-	    m_magic[i].mi_prob += m_magic[i-1].mi_prob;
-    }
-
-    badcheck("miscellaneous magic", m_magic, MAXMM);
-}
-
-
 /*
  * init_names:
  *	Generate the names of the various scrolls
@@ -226,16 +398,16 @@ init_names()
     register char *cp, *sp;
     register int i, nwords;
 
-    for (i = 0 ; i < MAXSCROLLS ; i++)
+    for (i = 0; i < MAXSCROLLS; i++)
     {
 	cp = prbuf;
-	nwords = rnd(COLS/20) + 1 + (COLS > 40 ? 1 : 0);
+	nwords = rnd(4)+2;
 	while(nwords--)
 	{
 	    nsyl = rnd(3)+1;
 	    while(nsyl--)
 	    {
-		sp = sylls[rnd((sizeof sylls) / (sizeof (char *)))];
+		sp = sylls[rnd(NSYLLS)].w_string;
 		while(*sp)
 		    *cp++ = *sp++;
 	    }
@@ -251,207 +423,6 @@ init_names()
     }
     badcheck("scrolls", s_magic, MAXSCROLLS);
 }
-
-/*
- * init_player:
- *	roll up the rogue
- */
-
-init_player()
-{
-    int stat_total, ch, wpt, i, j;
-    struct linked_list *weap_item, *armor_item, *food_item;
-    struct object *obj;
-    char *class;
-
-    weap_item = armor_item = NULL;
-
-    if (char_type == -1) {
-	/* See what type character will be */
-	wclear(hw);
-	touchwin(hw);
-	mvwaddstr(hw,2,0,"[1] Fighter\n[2] Magician\n[3] Cleric\n[4] Thief");
-	mvwaddstr(hw, 0, 0, "What character class do you desire? ");
-	draw(hw);
-	char_type = (wgetch(hw) - '0');
-	while (char_type < 1 || char_type > 4) {
-	    mvwaddstr(hw,0,0,"Please enter a character type between 1 and 4: ");
-	    draw(hw);
-	    char_type = (wgetch(hw) - '0');
-	}
-	char_type--;
-    }
-    player.t_ctype = char_type;
-    player.t_quiet = 0;
-    pack = NULL;
-
-#ifdef WIZARD
-    /* 
-     * allow me to describe a super character 
-     */
-    if (wizard && md_getuid() == AUTHOR && strcmp(getenv("SUPER"),"YES") == 0) {
-	    pstats.s_str = 25;
-	    pstats.s_intel = 25;
-	    pstats.s_wisdom = 25;
-	    pstats.s_dext = 25;
-	    pstats.s_const = 25;
-	    pstats.s_charisma = 25;
-	    pstats.s_exp = 7500000L;
-	    pstats.s_lvl = 20;
-	    pstats.s_hpt = 500;
-	    pstats.s_carry = totalenc();
-	    strcpy(pstats.s_dmg,"3d4");
-	    if (player.t_ctype == C_FIGHTER)
-		weap_item = spec_item(WEAPON, TWOSWORD, 5, 5);
-	    else
-		weap_item = spec_item(WEAPON, SWORD, 5, 5);
-	    obj = OBJPTR(weap_item);
-	    obj->o_flags |= ISKNOW;
-	    add_pack(weap_item, TRUE);
-	    cur_weapon = obj;
-	    j = PLATE_ARMOR;
-	    if (player.t_ctype == C_THIEF)
-		j = STUDDED_LEATHER;
-	    armor_item = spec_item(ARMOR, j, 10, 0);
-	    obj = OBJPTR(armor_item);
-	    obj->o_flags |= (ISKNOW | ISPROT);
-	    obj->o_weight = armors[j].a_wght;
-	    add_pack(armor_item, TRUE);
-	    cur_armor = obj;
-	    purse += 10000;
-    }
-    else 
-#endif
-
-    {
-	wclear(hw);
-	do {
-	    if (armor_item != NULL) {
-		o_discard(armor_item);
-		armor_item = NULL;
-	    }
-	    if (weap_item != NULL) {
-		o_discard(weap_item);
-		weap_item = NULL;
-	    }
-	    pstats.s_lvl = 1;
-	    pstats.s_exp = 0L;
-	    pstats.s_hpt = 12 + rnd(10);
-	    pstats.s_str = 7 + rnd(5);
-	    pstats.s_intel = 7 + rnd(5);
-	    pstats.s_wisdom = 7 + rnd(5);
-	    pstats.s_dext = 7 + rnd(5);
-	    pstats.s_const = 14 + rnd(5);
-	    pstats.s_charisma = 7 + rnd(5);
-
-	    /* Now for the special ability */
-	    switch (char_type) {
-		case C_FIGHTER:  pstats.s_str	= (rnd(10) == 7) ? 18 : 16;
-		when C_MAGICIAN: pstats.s_intel	= (rnd(10) == 7) ? 18 : 16;
-		when C_CLERIC:   pstats.s_wisdom= (rnd(10) == 7) ? 18 : 16;
-		when C_THIEF:    pstats.s_dext	= (rnd(10) == 7) ? 18 : 16;
-	    }
-	    strcpy(pstats.s_dmg,"1d4");
-	    stat_total =pstats.s_str  + pstats.s_intel + pstats.s_wisdom +
-			pstats.s_dext + pstats.s_const;
-	    /*
-	     * since the player can re-roll stats at will, keep the maximum
-	     * to some reasonable limit
-	     */
-	    if (stat_total > MAXSTATS)
-		pstats.s_const -= (stat_total - MAXSTATS);
-	    pstats.s_carry = totalenc();
-
-	    /*
-	     * Give the rogue his weaponry.  
-	     */
-	    do {
-		i = rnd(8);	/* number of acceptable weapons */
-		switch(i) {
-		    case 0: ch = 25; wpt = MACE;
-		    when 1: ch = 25; wpt = SWORD;
-		    when 2: ch = 20; wpt = BATTLEAXE;
-		    when 3: ch = 20; wpt = TRIDENT;
-		    when 4: ch = 20; wpt = SPETUM;
-		    when 5: ch = 20; wpt = BARDICHE;
-		    when 6: ch = 15; wpt = PIKE;
-		    when 7: ch = 20; wpt = HALBERD;
-		}
-	    } while(rnd(100) > ch);
-	    if (player.t_ctype == C_FIGHTER)
-		wpt = TWOSWORD;
-	    weap_item = spec_item(WEAPON, wpt, rnd(2), rnd(2)+1);
-	    obj = OBJPTR(weap_item);
-	    obj->o_flags |= ISKNOW;
-	    /*
-	     * And his suit of armor.......
-	     * Thieves can only wear leather armor
-	     * fighters get better armor on an average
-	     */
-	    if (player.t_ctype == C_THIEF)
-		j = STUDDED_LEATHER;
-	    else {
-		if (player.t_ctype == C_FIGHTER)
-		    i = 50 + rnd(50);
-		else
-		    i = rnd(100);
-		j = 0;
-		while (armors[j].a_prob < i)
-		    j++;
-	    }
-	    armor_item = spec_item(ARMOR, j, 0, 0);
-	    obj = OBJPTR(armor_item);
-	    obj->o_flags |= ISKNOW;
-	    obj->o_weight = armors[j].a_wght;
-	    switch(player.t_ctype) {
-		case C_FIGHTER:	class = "fighter";
-		when C_MAGICIAN:class = "magic user";
-		when C_CLERIC:	class = "cleric";
-		when C_THIEF:	class = "thief";
-		otherwise:	class = "unknown";
-	    }
-	    wmove(hw, 2, 0);
-	    wprintw(hw, "You have rolled a %s with the following attributes:",class);
-	    wmove(hw,4,0);
-	    wprintw(hw, "    Int: %2d", pstats.s_intel);
-	    wprintw(hw, "    Str: %2d", pstats.s_str);
-	    wprintw(hw, "    Wis: %2d", pstats.s_wisdom); 
-	    wprintw(hw, "    Dex: %2d", pstats.s_dext);
-	    wprintw(hw, "  Const: %2d", pstats.s_const);
-	    wclrtoeol(hw);
-	    wmove(hw, 6, 0);
-	    wprintw(hw, "     Hp: %2d", pstats.s_hpt);
-	    wclrtoeol(hw);
-	    mvwaddstr(hw, 8, 5, inv_name(OBJPTR(weap_item), FALSE));
-	    wclrtoeol(hw);
-	    mvwaddstr(hw, 9, 5, inv_name(OBJPTR(armor_item), FALSE));
-	    wclrtoeol(hw);
-	    mvwaddstr(hw,0,0,"Would you like to re-roll the character? ");
-	    draw(hw);
-	} while(wgetch(hw) == 'y');
-
-	obj = OBJPTR(weap_item);
-	add_pack(weap_item, TRUE);
-	cur_weapon = obj;
-	obj = OBJPTR(armor_item);
-	add_pack(armor_item, TRUE);
-	cur_armor = obj;
-    }
-    /*
-     * Give him some food
-     */
-    food_item = spec_item(FOOD, 0, 0, 0);
-    obj = OBJPTR(food_item);
-    obj->o_weight = things[TYP_FOOD].mi_wght;
-    add_pack(food_item, TRUE);
-    pstats.s_arm = 10;
-    max_stats = pstats;
-}
-
-
-
-
-
 
 /*
  * init_stones:
@@ -460,21 +431,16 @@ init_player()
 
 init_stones()
 {
-    register int i, j;
-    bool used[NSTONES];
+    register int i;
     register char *str;
 
-    for (i = 0; i < NSTONES; i++)
-        used[i] = FALSE;
-
-    for (i = 0 ; i < MAXRINGS ; i++)
+    for (i = 0; i < MAXRINGS; i++)
     {
 	do
-            j = rnd(NSTONES);
-        until (!used[j]);
-
-        used[j] = TRUE;
-	r_stones[i] = stones[j];
+	    str = stones[rnd(NSTONES)].w_string;
+	until (isupper(*str));
+	*str = tolower(*str);
+	r_stones[i] = str;
 	r_know[i] = FALSE;
 	r_guess[i] = NULL;
 	if (i > 0)
@@ -482,18 +448,106 @@ init_stones()
     }
     badcheck("rings", r_magic, MAXRINGS);
 }
-
-/*
- * init_things
- *	Initialize the probabilities for types of things
- */
-init_things()
-{
-    register struct magic_item *mp;
 
-    for (mp = &things[1] ; mp < &things[NUMTHINGS] ; mp++)
-	mp->mi_prob += (mp-1)->mi_prob;
-    badcheck("things", things, NUMTHINGS);
+/*
+ * init_materials:
+ *	Initialize the construction materials for wands and staffs
+ */
+
+init_materials()
+{
+    register int i;
+    register char *str;
+
+    for (i = 0; i < MAXSTICKS; i++)
+    {
+	do
+	    if (rnd(100) > 50)
+	    {
+		str = metal[rnd(NMETAL)].w_string;
+		if (isupper(*str))
+			ws_type[i] = "wand";
+	    }
+	    else
+	    {
+		str = wood[rnd(NWOOD)].w_string;
+		if (isupper(*str))
+			ws_type[i] = "staff";
+	    }
+	until (isupper(*str));
+	*str = tolower(*str);
+	ws_made[i] = str;
+	ws_know[i] = FALSE;
+	ws_guess[i] = NULL;
+	if (i > 0)
+		ws_magic[i].mi_prob += ws_magic[i-1].mi_prob;
+    }
+    badcheck("sticks", ws_magic, MAXSTICKS);
 }
 
+badcheck(name, magic, bound)
+char *name;
+register struct magic_item *magic;
+register int bound;
+{
+    register struct magic_item *end;
 
+    if (magic[bound - 1].mi_prob == 100)
+	return;
+    printf("\nBad percentages for %s:\n", name);
+    for (end = &magic[bound]; magic < end; magic++)
+	printf("%3d%% %s\n", magic->mi_prob, magic->mi_name);
+    printf("[hit RETURN to continue]");
+    fflush(stdout);
+    while (getchar() != '\n')
+	continue;
+}
+
+struct h_list helpstr[] = {
+    '?',	"	prints help",
+    '/',	"	identify object",
+    'h',	"	left",
+    'j',	"	down",
+    'k',	"	up",
+    'l',	"	right",
+    'y',	"	up & left",
+    'u',	"	up & right",
+    'b',	"	down & left",
+    'n',	"	down & right",
+    'H',	"	run left",
+    'J',	"	run down",
+    'K',	"	run up",
+    'L',	"	run right",
+    'Y',	"	run up & left",
+    'U',	"	run up & right",
+    'B',	"	run down & left",
+    'N',	"	run down & right",
+    't',	"<dir>	throw something",
+    'f',	"<dir>	forward until find something",
+    'p',	"<dir>	zap a wand in a direction",
+    'z',	"	zap a wand or staff",
+    '>',	"	go down a staircase",
+    's',	"	search for trap/secret door",
+    ' ',	"	(space) rest for a while",
+    'i',	"	inventory",
+    'I',	"	inventory single item",
+    'q',	"	quaff potion",
+    'r',	"	read paper",
+    'e',	"	eat food",
+    'w',	"	wield a weapon",
+    'W',	"	wear armor",
+    'T',	"	take armor off",
+    'P',	"	put on ring",
+    'R',	"	remove ring",
+    'd',	"	drop object",
+    'c',	"	call object",
+    'o',	"	examine/set options",
+    CTRL('L'),	"	redraw screen",
+    CTRL('R'),	"	repeat last message",
+    ESCAPE,	"	cancel command",
+    'v',	"	print program version number",
+    '!',	"	shell escape",
+    'S',	"	save game",
+    'Q',	"	quit",
+    0, 0
+};
