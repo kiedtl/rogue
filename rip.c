@@ -38,9 +38,8 @@ char	*killname();
  * death:
  *	Do something really fun when he dies
  */
-
-death(monst)
-register char monst;
+_Noreturn void
+death(char monst)
 {
     register char **dp = rip, *killer;
     register struct tm *lt;
@@ -52,8 +51,10 @@ register char monst;
     lt = localtime(&date);
     clear();
     move(8, 0);
+
     while (*dp)
 	printw("%s\n", *dp++);
+
     mvaddstr(14, 28-((strlen(whoami)+1)/2), whoami);
     purse -= purse/10;
     sprintf(buf, "%d Au", purse);
@@ -65,6 +66,9 @@ register char monst;
     mvaddstr(18, 26, prbuf);
     move(LINES-1, 0);
     draw(stdscr);
+
+    wait_for(' ');
+
     score(purse, 0, monst);
     endwin();
     exit(0);
