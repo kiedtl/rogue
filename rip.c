@@ -23,16 +23,32 @@ static char *rip[] = {
 "                   /     PEACE      \\",
 "                  /                  \\",
 "                  |                  |",
-"                  |                  |",
-"                  |   killed by a    |",
-"                  |                  |",
-"                  |       1980       |",
-"                 *|     *  *  *      | *",
+"                  |        --        |",
+"                  |    killed by a   |",
+"                  |        --        |",
+"                  |       YEAR       |",
+"                 *|      *  *  *     | *",
 "         ________)/\\\\_//(\\/(/\\)/\\//\\/|_)_______",
     0
 };
 
-char	*killname();
+char *
+killname(char monst)
+{
+	if (isupper(monst)) {
+		return monsters[monst-'A'].m_name;
+	} else {
+		switch (monst) {
+		break; case 'a':
+			return "arrow";
+		break; case 'd':
+			return "dart";
+		break; case 'b':
+			return "bolt";
+		}
+	}
+	return "";
+}
 
 /*
  * death:
@@ -41,88 +57,88 @@ char	*killname();
 _Noreturn void
 death(char monst)
 {
-    register char **dp = rip, *killer;
-    register struct tm *lt;
-    time_t date;
-    char buf[80];
-    struct tm *localtime();
+	clear();
 
-    time(&date);
-    lt = localtime(&date);
-    clear();
-    move(8, 0);
+	move(8, 0);
+	for (char **dp = rip; *dp; ++dp)
+		printw("%s\n", *dp);
 
-    while (*dp)
-	printw("%s\n", *dp++);
+	mvaddstr(14, 28-((strlen(whoami)+1)/2), whoami);
 
-    mvaddstr(14, 28-((strlen(whoami)+1)/2), whoami);
-    purse -= purse/10;
-    sprintf(buf, "%d Au", purse);
-    mvaddstr(15, 28-((strlen(buf)+1)/2), buf);
-    killer = killname(monst);
-    mvaddstr(17, 28-((strlen(killer)+1)/2), killer);
-    mvaddstr(16, 33, vowelstr(killer));
-    sprintf(prbuf, "%4d", 1900+lt->tm_year);
-    mvaddstr(18, 26, prbuf);
-    move(LINES-1, 0);
-    draw(stdscr);
+	char buf[80];
+	purse -= purse/10;
+	sprintf(buf, "%d Au", purse);
+	mvaddstr(15, 28-((strlen(buf)+1)/2), buf);
 
-    wait_for(' ');
+	char  *killer;
+	killer = killname(monst);
+	mvaddstr(17, 28-((strlen(killer)+1)/2), killer);
+	mvaddstr(16, 33, vowelstr(killer));
 
-    score(purse, 0, monst);
-    endwin();
-    exit(0);
+	time_t date;
+	time(&date);
+	struct tm *lt = localtime(&date);
+	sprintf(prbuf, "%4d", 1900+lt->tm_year);
+	mvaddstr(18, 26, prbuf);
+
+	move(LINES-1, 0);
+	draw(stdscr);
+	wait_for(' ');
+
+	score(purse, 0, monst);
+	endwin();
+	exit(0);
 }
 
 /*
  * score -- figure score and post it.
+ *
+ * VARARGS2      // what does this even mean -- kiedtl
  */
-
-/* VARARGS2 */
-score(amount, flags, monst)
-char monst;
+void
+score(int amount, int flags, char monst)
 {
-    static struct sc_ent {
-	int sc_score;
-	char sc_name[80];
-	int sc_flags;
-	int sc_level;
-	int sc_uid;
-	char sc_monster;
-    } top_ten[10];
-    register struct sc_ent *scp;
-    register int i;
-    register struct sc_ent *sc2;
-    register FILE *outf;
-    register char *killer;
-    register int prflags = 0;
-    register int fd;
-    static char *reason[] = {
-	"killed",
-	"quit",
-	"A total winner",
-    };
+	static struct sc_ent {
+		int sc_score;
+		char sc_name[80];
+		int sc_flags;
+		int sc_level;
+		int sc_uid;
+		char sc_monster;
+	} top_ten[10];
+	register struct sc_ent *scp;
+	register int i;
+	register struct sc_ent *sc2;
+	register FILE *outf;
+	register char *killer;
+	register int prflags = 0;
+	register int fd;
+	static char *reason[] = {
+		"killed",
+		"quit",
+		"A total winner",
+	};
 
-    if (flags != -1)
-	endwin();
-    /*
-     * Open file and read list
-     */
+	if (flags != -1)
+		endwin();
 
-    if ((fd = open(SCOREFILE, O_RDWR | O_CREAT, 0666 )) < 0)
-	return;
-    outf = (FILE *) fdopen(fd, "w");
+	/*
+	 * Open file and read list
+	 */
 
-    for (scp = top_ten; scp <= &top_ten[9]; scp++)
-    {
-	scp->sc_score = 0;
-	for (i = 0; i < 80; i++)
-	    scp->sc_name[i] = rnd(255);
-	scp->sc_flags = RN;
-	scp->sc_level = RN;
-	scp->sc_monster = RN;
-	scp->sc_uid = RN;
-    }
+	if ((fd = open(SCOREFILE, O_RDWR | O_CREAT, 0666 )) < 0)
+		return;
+	outf = (FILE *) fdopen(fd, "w");
+
+	for (scp = top_ten; scp <= &top_ten[9]; scp++) {
+		scp->sc_score = 0;
+		for (i = 0; i < 80; i++)
+			scp->sc_name[i] = rnd(255);
+		scp->sc_flags = RN;
+		scp->sc_level = RN;
+		scp->sc_monster = RN;
+		scp->sc_uid = RN;
+	}
 
     signal(SIGINT, SIG_DFL);
     if (flags != -1)
@@ -323,21 +339,3 @@ total_winner()
     exit(0);
 }
 
-char *
-killname(monst)
-register char monst;
-{
-    if (isupper(monst))
-	return monsters[monst-'A'].m_name;
-    else
-	switch (monst)
-	{
-	    case 'a':
-		return "arrow";
-	    case 'd':
-		return "dart";
-	    case 'b':
-		return "bolt";
-	}
-    return("");
-}
