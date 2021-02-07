@@ -8,8 +8,6 @@
  * Maximum number of different things
  */
 
-#include "daemon.h"
-
 #define MAXROOMS 9
 #define MAXTHINGS 9
 #define MAXOBJ 9
@@ -488,7 +486,6 @@ extern coord delta;				/* Change indicated to get_dir() */
 
 extern coord ch_ret;
 extern char countch,direction,newcount;
-extern struct delayed_action d_list[20];
 extern int between;
 extern int num_checks;
 extern char lvl_mons[27],wand_mons[27];
