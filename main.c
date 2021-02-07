@@ -17,7 +17,6 @@
 #include "rogue.h"
 
 struct termios terminal;
-int num_checks;			/* times we've gone over in checkout() */
 WINDOW *cw;                              /* Window that the player sees */
 WINDOW *hw;                              /* Used for the help command */
 WINDOW *mw;                              /* Used to store mosnters */
@@ -86,15 +85,6 @@ char **envp;
     if (env == NULL || fruit[0] == '\0')
 	strcpy(fruit, "slime-mold");
 
-#if MAXLOAD|MAXUSERS
-    if (too_much() && !wizard && !author())
-    {
-	printf("Sorry, %s, but the system is too loaded now.\n", whoami);
-	printf("Try again later.  Meanwhile, why not enjoy a%s %s?\n",
-	    vowelstr(fruit), fruit);
-	exit(1);
-    }
-#endif
     if (argc == 2)
 	if (!restore(argv[1], envp)) /* Note: restore will never return */
 	{
@@ -317,14 +307,6 @@ setup()
 #ifdef SIGTSTP
     signal(SIGTSTP, tstp);
 #endif
-#ifdef CHECKTIME
-    if (!author())
-    {
-	signal(SIGALRM, checkout);
-	alarm(CHECKTIME * 60);
-	num_checks = 0;
-    }
-#endif
     crmode();				/* Cbreak mode */
     noecho();				/* Echo off */
 }
@@ -365,22 +347,6 @@ playit()
     endit(-1);
 }
 
-#if defined(MAXLOAD) || defined(MAXUSERS)
-/*
- * see if the system is being used too much for this game
- */
-too_much()
-{
-#ifdef MAXLOAD
-    double avec[3];
-
-    if (loadav(avec) == 0)
-    	return (avec[2] > (MAXLOAD / 10.0));
-	else
-#endif
-        return (ucount() > MAXUSERS);
-}
-
 /*
  * see if a user is an author of the program
  */
@@ -394,136 +360,3 @@ author()
 	    return FALSE;
     }
 }
-#endif
-
-#ifdef CHECKTIME
-void
-checkout(int p)
-{
-    static char *msgs[] = {
-	"The load is too high to be playing.  Please leave in %d minutes",
-	"Please save your game.  You have %d minutes",
-	"Last warning.  You have %d minutes to leave",
-    };
-    int checktime;
-
-    signal(SIGALRM, checkout);
-    if (too_much())
-    {
-	if (num_checks == 3)
-	    fatal("Sorry.  You took to long.  You are dead\n");
-	checktime = CHECKTIME / (num_checks + 1);
-	chmsg(msgs[num_checks++], checktime);
-	alarm(checktime * 60);
-    }
-    else
-    {
-	if (num_checks)
-	{
-	    chmsg("The load has dropped back down.  You have a reprieve.");
-	    num_checks = 0;
-	}
-	alarm(CHECKTIME * 60);
-    }
-}
-
-/*
- * checkout()'s version of msg.  If we are in the middle of a shell, do a
- * printf instead of a msg to avoid the refresh.
- */
-chmsg(fmt, arg)
-char *fmt;
-int arg;
-{
-    if (in_shell)
-    {
-	printf(fmt, arg);
-	putchar('\n');
-	fflush(stdout);
-    }
-    else
-	msg(fmt, arg);
-}
-#endif
-
-#ifdef LOADAV
-
-#include <nlist.h>
-
-struct nlist avenrun[] =
-{
-    {"avenrun",0,0,0,0,0},
-    {0,0,0,0,0,0}
-};
-
-loadav(avg)
-register double *avg;
-{
-    register int kmem;
-	int av[3];
-    if ((kmem = open("/dev/kmem", 0)) < 0)
-	goto bad;
-    
-	if (nlist(NAMELIST, avenrun) != 0)
-    {
-bad:
-	avg[0] = avg[1] = avg[2] = 0.0;
-	return -1;
-    }
-
-    lseek(kmem, (long) avenrun[0].n_value, 0);
-    read(kmem, av, 3 * sizeof (int));
-	
-	avg[0] = av[0] / 65536.0;
-	avg[1] = av[1] / 65536.0;
-	avg[2] = av[2] / 65536.0;
-
-	return(0);
-}
-#endif
-
-#ifdef UCOUNT
-
-#ifdef __CYGWIN__
-#include <utmp.h>
-
-ucount()
-{
-    struct utmp *up=NULL;
-    int count=0;
-
-    setutent();    
-    do
-    {
-	up = getutent();
-	if (up && up->ut_type == USER_PROCESS)
-	    count++;
-    } while(up != NULL);
-   
-   endutent();
-
-   return(count);
-}
-#else
-#include <utmpx.h>
-
-ucount()
-{
-    struct utmpx *up=NULL;
-    int count=0;
-
-    setutxent();    
-    do
-    {
-	up = getutxent();
-	if (up && up->ut_type == USER_PROCESS)
-	    count++;
-    } while(up != NULL);
-   
-   endutxent();
-
-   return(count);
-}
-#endif
-
-#endif

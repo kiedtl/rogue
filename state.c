@@ -1732,7 +1732,6 @@ rs_save_file(FILE *savef)
     rs_write_words(savef,stones,NSTONES);
     rs_write_words(savef,wood,NWOOD);
     rs_write_words(savef,metal,NMETAL);
-    rs_write_int(savef,num_checks);                     /* main.c       */
     rs_write(savef,lvl_mons,sizeof(lvl_mons));          /* monsters.c   */
     rs_write(savef,wand_mons,sizeof(wand_mons));        /* monsters.c   */
     rs_write_coord(savef, &nh);                         /* move.c       */
@@ -1832,7 +1831,6 @@ rs_restore_file(int inf)
     rs_read_words(inf,stones,NSTONES);
     rs_read_words(inf,wood,NWOOD);
     rs_read_words(inf,metal,NMETAL);
-    rs_read_int(inf,&num_checks);                       /* main.c       */
     rs_read(inf, lvl_mons, sizeof(lvl_mons));           /* monsters.c   */
     rs_read(inf, wand_mons, sizeof(wand_mons));         /* monsters.c   */
     rs_read_coord(inf, &nh);                            /* move.c       */
