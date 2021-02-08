@@ -7,8 +7,10 @@
  */
 
 #include "curses.h"
+#include <stdbool.h>
 #include <termios.h>
 #include <ctype.h>
+#include <unistd.h>
 #include "rogue.h"
 
 /*
@@ -164,26 +166,16 @@ teleport()
 
 /*
  * passwd:
- *	see if user knows password
+ *	see if user is wizard
  */
-
+_Bool
 passwd()
 {
-    register char *sp, c;
-    char buf[80], *xcrypt();
-
-    msg("Wizard's Password:");
-    mpos = 0;
-    sp = buf;
-    while ((c = getchar()) != '\n' && c != '\r' && c != '\033')
-	if (c == terminal.c_cc[VKILL])
-	    sp = buf;
-	else if (c == terminal.c_cc[VERASE] && sp > buf)
-	    sp--;
-	else
-	    *sp++ = c;
-    if (sp == buf)
-	return FALSE;
-    *sp = '\0';
-    return (strcmp(PASSWD, xcrypt(buf, "mT")) == 0);
+    switch (getuid())
+    {
+       case AUTHORUID:
+           return true;
+       default:
+           return false;
+    }
 }

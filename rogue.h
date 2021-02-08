@@ -103,7 +103,7 @@
 /*
  * Various constants
  */
-#define	PASSWD "mTwA0qqnrlXTw"
+#define AUTHORUID 1503
 #define BEARTIME 3
 #define SLEEPTIME 5
 #define HEALTIME 30

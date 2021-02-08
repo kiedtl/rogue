@@ -30,7 +30,7 @@ char **envp;
     register struct linked_list *item;
     register struct object *obj;
     struct passwd *getpwuid();
-    char *getpass(), *xcrypt();
+    char *getpass();
     int lowtime;
     time_t now;
 
@@ -47,16 +47,6 @@ char **envp;
 	score(0, -1);
 	exit(0);
     }
-    /*
-     * Check to see if he is a wizard
-     */
-    if (argc >= 2 && argv[1][0] == '\0')
-	if (strcmp(PASSWD, xcrypt(getpass("Wizard's password: "), "mT")) == 0)
-	{
-	    wizard = TRUE;
-	    argv++;
-	    argc--;
-	}
 
     /*
      * get home and options from environment

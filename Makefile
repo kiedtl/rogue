@@ -4,23 +4,20 @@
 #
 DISTNAME=rogue3.6.2
 
-HDRS= rogue.h daemon.h
-OBJS= vers.o armor.o chase.o command.o daemon.o daemons.o fight.o \
-	init.o io.o list.o main.o misc.o monsters.o move.o newlevel.o \
-	options.o pack.o passages.o potions.o rings.o rip.o rooms.o \
-	save.o scrolls.o state.o sticks.o things.o weapons.o wizard.o xcrypt.o
-CFILES= vers.c armor.c chase.c command.c daemon.c daemons.c fight.c \
-	init.c io.c list.c main.c misc.c monsters.c move.c newlevel.c \
-	options.c pack.c passages.c potions.c rings.c rip.c rooms.c \
-	save.c scrolls.c state.c sticks.c things.c weapons.c wizard.c xcrypt.c
+HDRS   = rogue.h daemon.h
+CFILES = vers.c armor.c chase.c command.c daemon.c daemons.c fight.c \
+	 init.c io.c list.c main.c misc.c monsters.c move.c newlevel.c \
+	 options.c pack.c passages.c potions.c rings.c rip.c rooms.c \
+	 save.c scrolls.c state.c sticks.c things.c weapons.c wizard.c
+OBJS   = $(CFILES:.c=.o)
 
-MISC=	Makefile LICENSE.TXT rogue.6 rogue.r
+MISC   = Makefile LICENSE.TXT rogue.6 rogue.r
 
-CC    = gcc
-CFLAGS= -O3
-CRLIB = -lcurses
-RM    = rm -f
-TAR   = tar
+CC     = gcc
+CFLAGS = -O3
+CRLIB  = -lcurses
+RM     = rm -f
+TAR    = tar
 
 rogue: $(HDRS) $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(CRLIB) -o $@
