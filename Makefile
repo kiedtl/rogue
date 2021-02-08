@@ -4,7 +4,7 @@
 #
 DISTNAME=rogue3.6.2
 
-HDRS= rogue.h machdep.h
+HDRS= rogue.h daemon.h
 OBJS= vers.o armor.o chase.o command.o daemon.o daemons.o fight.o \
 	init.o io.o list.o main.o misc.o monsters.o move.o newlevel.o \
 	options.o pack.o passages.o potions.o rings.o rip.o rooms.o \
@@ -24,8 +24,6 @@ TAR   = tar
 
 rogue: $(HDRS) $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(CRLIB) -o $@
-
-main.o rip.o: machdep.h
 
 tags: $(HDRS) $(CFILES)
 	ctags -u $?

@@ -5,6 +5,11 @@
  */
 
 /*
+ * where scorefile should live
+ */
+#define SCOREFILE	"/usr/local/games/rogue36/rogue36.scr"
+
+/*
  * Maximum number of different things
  */
 
@@ -356,7 +361,7 @@ struct thing {
     short t_flags;			/* State word */
     struct stats t_stats;		/* Physical description */
     struct linked_list *t_pack;		/* What the thing is carrying */
-	int t_reserved;         /* reserved for save/restore code */
+    int t_reserved;                     /* reserved for save/restore code */
 };
 
 /*

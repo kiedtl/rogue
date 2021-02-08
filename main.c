@@ -13,7 +13,7 @@
 #include <signal.h>
 #include <pwd.h>
 #include <termios.h>
-#include "machdep.h"
+
 #include "rogue.h"
 
 struct termios terminal;
@@ -345,18 +345,4 @@ playit()
     while (playing)
 	command();			/* Command execution */
     endit(-1);
-}
-
-/*
- * see if a user is an author of the program
- */
-author()
-{
-    switch (getuid())
-    {
-	case AUTHORUID:
-	    return TRUE;
-	default:
-	    return FALSE;
-    }
 }
