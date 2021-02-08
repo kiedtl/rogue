@@ -280,7 +280,7 @@ read_scroll(void)
 		free(s_guess[obj->o_which]);
 		s_guess[obj->o_which] = NULL;
 	} else if (!s_know[obj->o_which] && askme && s_guess[obj->o_which] == NULL) {
-		msg(terse ? "Call it: " : "What do you want to call it? ");
+		msg("What do you want to call it? ");
 		if (get_str(buf, cw) == NORM) {
 			s_guess[obj->o_which] = malloc((unsigned int) strlen(buf) + 1);
 			strcpy(s_guess[obj->o_which], buf);
