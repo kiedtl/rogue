@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <pwd.h>
 #include <termios.h>
+#include <stdlib.h>
 
 #include "rogue.h"
 
@@ -22,18 +23,12 @@ WINDOW *hw;               /* Used for the help command */
 WINDOW *mw;               /* Used to store mosnters */
 
 int
-main(argc, char **argv, char **envp)
+main(int argc, char **argv, char **envp)
 {
 	char *env;
 	struct passwd *pw;
 	struct linked_list *item;
 	struct object *obj;
-	int lowtime;
-	time_t now;
-
-#ifdef __DJGPP__
-	_fmode = O_BINARY;
-#endif
 
 	/*
 	 * check for print-score option
@@ -65,9 +60,9 @@ main(argc, char **argv, char **envp)
 		if ((pw = getpwuid(getuid())) == NULL) {
 			printf("Say, who the hell are you?\n");
 			exit(1);
-		} else {
-			strucpy(whoami, pw->pw_name, strlen(pw->pw_name));
 		}
+
+		strucpy(whoami, pw->pw_name, strlen(pw->pw_name));
 	}
 
 	if (env == NULL || fruit[0] == '\0')
@@ -80,19 +75,18 @@ main(argc, char **argv, char **envp)
 		}
 	} 
 
-	time(&now);
-	lowtime = (int) now;
-	dnum = (wizard && getenv("SEED") != NULL ?
-		atoi(getenv("SEED")) :
-		lowtime + getpid());
+	/* setup seed */
+	if (wizard && getenv("SEED") != NULL)
+		seed = strtol(getenv("SEED"), NULL, 0);
+	else
+		seed = time(NULL) + getpid();
 
 	if (wizard)
-		printf("Hello %s, welcome to dungeon #%d", whoami, dnum);
+		printf("Hello %s, welcome to dungeon (seed %d)", whoami, seed);
 	else
 		printf("Hello %s, just a moment while I dig the dungeon...", whoami);
 
 	fflush(stdout);
-	seed = dnum;
 	init_player();        /* Roll up the rogue */
 	init_things();        /* Set up probabilities of things */
 	init_names();         /* Set up names of scrolls */
@@ -101,16 +95,8 @@ main(argc, char **argv, char **envp)
 	init_materials();     /* Set up materials of wands */
 	initscr();            /* Start up cursor package */
 
-	if (COLS < 70) {
-		printf("\n\nSorry, %s, but your terminal window has too few columns.\n", whoami);
-		printf("Your terminal has %d columns, needs 70.\n",COLS);
-		endwin();
-		exit(1);
-	}
-
-	if (LINES < 22) {
-		printf("\n\nSorry, %s, but your terminal window has too few lines.\n", whoami);
-		printf("Your terminal has %d lines, needs 22.\n",LINES);
+	if (COLS < 70 || LINES < 22) {
+		printf("min terminal size: %d lines, %d cols\n", LINES, COLS);
 		endwin();
 		exit(1);
 	}
@@ -124,7 +110,7 @@ main(argc, char **argv, char **envp)
 	mw = newwin(LINES, COLS, 0, 0);
 	hw = newwin(LINES, COLS, 0, 0);
 	waswizard = wizard;
-	new_level();						/* Draw current level */
+	new_level();        /* Draw current level */
 
 	/*
 	 * Start up daemons and fuses
@@ -205,20 +191,6 @@ main(argc, char **argv, char **envp)
 _Noreturn void
 endit(int p)
 {
-	fatal("Ok, if you want to exit that badly, I'll have to allow it\n");
-}
-
-/*
- * fatal:
- *		Exit the program, printing a message.
- */
-_Noreturn void
-fatal(char *s)
-{
-	clear();
-	move(LINES-2, 0);
-	printw("%s", s);
-	draw(stdscr);
 	endwin();
 	exit(0);
 }
@@ -311,24 +283,12 @@ setup(void)
 void
 playit(void)
 {
-	register char *opts;
-
-	/*
-	 * set up defaults for slow terminals
-	 */
-	tcgetattr(0,&terminal);
-
-	if (cfgetospeed(&terminal) < B1200) {
-		terse = TRUE;
-		jump = TRUE;
-	}
-
 	/*
 	 * parse environment declaration of options
 	 */
+	char *opts;
 	if ((opts = getenv("ROGUEOPTS")) != NULL)
 		parse_opts(opts);
-
 
 	oldpos = hero;
 	oldrp = roomin(&hero);

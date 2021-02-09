@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include "curses.h"
 #include <stdlib.h>
+#include <string.h>
 #include "rogue.h"
 
 /*
@@ -105,11 +106,10 @@ int size;
 {
     register char *space = ALLOC(size);
 
+    /* TODO: handle OOM nicely */
     if (space == NULL)
-    {
-	sprintf(prbuf, "Rogue ran out of memory (%d).  Fatal error!", sbrk(0));
-        fatal(prbuf);
-    }
+        abort();
+
     total++;
     return space;
 }
