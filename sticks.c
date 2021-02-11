@@ -316,7 +316,7 @@ bool gotdir;
 				msg("The %s whizzes by you", name);
 			}
 			mvwaddch(cw, pos.y, pos.x, dirch);
-			draw(cw);
+			//draw(cw); //REDRAW
 		}
 		pos.y += delta.y;
 		pos.x += delta.x;

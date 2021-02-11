@@ -6,103 +6,33 @@
  * @(#)options.c	3.3 (Berkeley) 5/25/81
  */
 
-#include "curses.h"
-#include <termios.h>
-#include <ctype.h>
+#include <curses.h>
 #include "rogue.h"
 
-#define	NUM_OPTS	(sizeof optlist / sizeof (OPTION))
+#include <termios.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <string.h>
 
 /*
  * description of an option and what to do with it
  */
-struct optstruct {
-    char	*o_name;	/* option name */
-    char	*o_prompt;	/* prompt for interactive entry */
-    int		*o_opt;		/* pointer to thing to set */
-    int		(*o_putfunc)();	/* function to print value */
-    int		(*o_getfunc)();	/* function to get value interactively */
-};
+typedef struct optstruct {
+    char       *o_name;        /* option name */
+    char       *o_prompt;      /* prompt for interactive entry */
+    int                *o_opt;         /* pointer to thing to set */
+    int                (*o_putfunc)(); /* function to print value */
+    int                (*o_getfunc)(); /* function to get value interactively */
+} OPTION;
 
-typedef struct optstruct	OPTION;
-
-int	put_bool(), get_bool(), put_str(), get_str();
-
-OPTION	optlist[] = {
-    {"terse",	 "Terse output: ",
-		 (int *) &terse,	put_bool,	get_bool	},
-    {"flush",	 "Flush typeahead during battle: ",
-		 (int *) &fight_flush,	put_bool,	get_bool	},
-    {"jump",	 "Show position only at end of run: ",
-		 (int *) &jump,		put_bool,	get_bool	},
-    {"step",	"Do inventories one line at a time: ",
-		(int *) &slow_invent,	put_bool,	get_bool	},
-    {"askme",	"Ask me about unidentified things: ",
-		(int *) &askme,		put_bool,	get_bool	},
-    {"name",	 "Name: ",
-		 (int *) whoami,	put_str,	get_str		},
-    {"fruit",	 "Fruit: ",
-		 (int *) fruit,		put_str,	get_str		},
-    {"file",	 "Save file: ",
-		 (int *) file_name,	put_str,	get_str		}
-};
-
-/*
- * print and then set options from the terminal
- */
-option()
-{
-    register OPTION	*op;
-    register int	retval;
-
-    wclear(hw);
-    touchwin(hw);
-    /*
-     * Display current values of options
-     */
-    for (op = optlist; op < &optlist[NUM_OPTS]; op++)
-    {
-	waddstr(hw, op->o_prompt);
-	(*op->o_putfunc)(op->o_opt);
-	waddch(hw, '\n');
-    }
-    /*
-     * Set values
-     */
-    wmove(hw, 0, 0);
-    for (op = optlist; op < &optlist[NUM_OPTS]; op++)
-    {
-	waddstr(hw, op->o_prompt);
-	if ((retval = (*op->o_getfunc)(op->o_opt, hw)))
-	    if (retval == QUIT)
-		break;
-	    else if (op > optlist) {	/* MINUS */
-		wmove(hw, (op - optlist) - 1, 0);
-		op -= 2;
-	    }
-	    else	/* trying to back up beyond the top */
-	    {
-		putchar('\007');
-		wmove(hw, 0, 0);
-		op--;
-	    }
-    }
-    /*
-     * Switch back to original screen
-     */
-    mvwaddstr(hw, LINES-1, 0, "--Press space to continue--");
-    draw(hw);
-    wait_for(' ');
-    clearok(cw, TRUE);
-    touchwin(cw);
-    after = FALSE;
-}
+#define NUM_OPTS 34
+OPTION optlist[NUM_OPTS];
 
 /*
  * put out a boolean
  */
-put_bool(b)
-bool	*b;
+void
+put_bool(_Bool *b)
 {
     waddstr(hw, *b ? "True" : "False");
 }
@@ -110,8 +40,8 @@ bool	*b;
 /*
  * put out a string
  */
-put_str(str)
-char *str;
+void
+put_str(char *str)
 {
     waddstr(hw, str);
 }
@@ -119,13 +49,11 @@ char *str;
 /*
  * allow changing a boolean option and print it out
  */
-
-get_bool(bp, win)
-bool *bp;
-WINDOW *win;
+int
+get_bool(_Bool *bp, WINDOW *win)
 {
-    register int oy, ox;
-    register bool op_bad;
+    int oy, ox;
+    bool op_bad;
 
     op_bad = TRUE;
     getyx(win, oy, ox);
@@ -133,7 +61,7 @@ WINDOW *win;
     while(op_bad)	
     {
 	wmove(win, oy, ox);
-	draw(win);
+	//draw(win); //REFACTOR
 	switch (readchar())
 	{
 	    case 't':
@@ -168,22 +96,21 @@ WINDOW *win;
 /*
  * set a string option
  */
-get_str(opt, win)
-register char *opt;
-WINDOW *win;
+int
+get_str(char *opt, WINDOW *win)
 {
-    register char *sp;
-    register int c, oy, ox;
+    char *sp;
+    int c, oy, ox;
     char buf[80];
 
-    draw(win);
+    //REFACTORraw(win);
     getyx(win, oy, ox);
     /*
      * loop reading in the string, and put it in a temporary buffer
      */
     for (sp = buf;
 	(c = readchar()) != '\n' && c != '\r' && c != '\033' && c != '\007';
-	wclrtoeol(win), draw(win))
+	wclrtoeol(win), draw())//draw(win))//REFACTOR
     {
 	if (c == -1)
 	    continue;
@@ -224,7 +151,7 @@ WINDOW *win;
     wmove(win, oy, ox);
     waddstr(win, opt);
     waddch(win, '\n');
-    draw(win);
+    //draw(win); //REFACTOR
     if (win == cw)
 	mpos += sp - buf;
     if (c == '-')
@@ -243,7 +170,7 @@ WINDOW *win;
  * or the end of the entire option string.
  */
 
-parse_opts(str)
+__parse_opts(str)
 register char *str;
 {
     register char *sp;

@@ -6,6 +6,8 @@
 
 #include "curses.h"
 #include "rogue.h"
+#include "dungeon.h"
+#include "util.h"
 
 do_rooms()
 {
@@ -59,41 +61,42 @@ do_rooms()
 	    } until(rp->r_pos.y > 0 && rp->r_pos.y < LINES-1);
 	    continue;
 	}
+
 	if (rnd(10) < level-1)
 	    rp->r_flags |= ISDARK;
+
 	/*
 	 * Find a place and size for a random room
 	 */
-	do
-	{
+	do {
 	    rp->r_max.x = rnd(bsze.x - 4) + 4;
 	    rp->r_max.y = rnd(bsze.y - 4) + 4;
 	    rp->r_pos.x = top.x + rnd(bsze.x - rp->r_max.x);
 	    rp->r_pos.y = top.y + rnd(bsze.y - rp->r_max.y);
 	} until (rp->r_pos.y != 0);
+
 	/*
 	 * Put the gold in
 	 */
-	if (rnd(100) < 50 && (!amulet || level >= max_level))
-	{
+	if (rnd(100) < 50 && (!amulet || level >= max_level)) {
 	    rp->r_goldval = GOLDCALC;
 	    rnd_pos(rp, &rp->r_gold);
-	    if (roomin(&rp->r_gold) != rp)
-		endwin(), abort();
+	    ENSURE(roomin(&rp->r_gold) == rp);
 	}
+
 	draw_room(rp);
+
 	/*
 	 * Put the monster in
 	 */
-	if (rnd(100) < (rp->r_goldval > 0 ? 80 : 25))
-	{
+	if (rnd(100) < (rp->r_goldval > 0 ? 80 : 25)) {
 	    item = new_item(sizeof *tp);
 	    tp = (struct thing *) ldata(item);
-	    do
-	    {
+	    do {
 		rnd_pos(rp, &mp);
-	    } until(mvwinch(stdscr, mp.y, mp.x) == FLOOR);
+	    } until(dungeonat_c(&mp) == FLOOR);
 	    new_monster(item, randmonster(FALSE), &mp);
+
 	    /*
 	     * See if we want to give it a treasure to carry around.
 	     */
@@ -106,73 +109,59 @@ do_rooms()
 /*
  * Draw a box around a room
  */
-
-draw_room(rp)
-register struct room *rp;
+void
+draw_room(struct room *rp)
 {
-    register int j, k;
+    int j, k;
 
-    move(rp->r_pos.y, rp->r_pos.x+1);
-    vert(rp->r_max.y-2);				/* Draw left side */
-    move(rp->r_pos.y+rp->r_max.y-1, rp->r_pos.x);
-    horiz(rp->r_max.x);					/* Draw bottom */
-    move(rp->r_pos.y, rp->r_pos.x);
-    horiz(rp->r_max.x);					/* Draw top */
-    vert(rp->r_max.y-2);				/* Draw right side */
+    vert(rp->r_pos.y, rp->r_pos.x + 1, rp->r_max.y-2);           /* Draw left side */
+    horiz(rp->r_pos.y+rp->r_max.y-1, rp->r_pos.x, rp->r_max.x);  /* Draw bottom */
+    horiz(rp->r_pos.y, rp->r_pos.x, rp->r_max.x);                /* Draw top */
+    vert(rp->r_pos.y, rp->r_pos.x + rp->r_max.x, rp->r_max.y-2); /* Draw right side */
+
     /*
      * Put the floor down
      */
     for (j = 1; j < rp->r_max.y-1; j++)
-    {
-	move(rp->r_pos.y + j, rp->r_pos.x+1);
 	for (k = 1; k < rp->r_max.x-1; k++)
-	    addch(FLOOR);
-    }
+	    dungeonset(rp->r_pos.y + j, rp->r_pos.x + k, FLOOR);
+
     /*
      * Put the gold there
      */
     if (rp->r_goldval)
-	mvaddch(rp->r_gold.y, rp->r_gold.x, GOLD);
+	dungeonset_c(&rp->r_gold, GOLD);
 }
 
 /*
  * horiz:
  *	draw a horizontal line
  */
-
-horiz(cnt)
-register int cnt;
+void
+horiz(int y, int x, int cnt)
 {
-    while (cnt--)
-	addch('-');
+    while (--cnt)
+	dungeonset(y, ++x, '-');
 }
 
 /*
  * vert:
  *	draw a vertical line
  */
-
-vert(cnt)
-register int cnt;
+void
+vert(int y, int x, int cnt)
 {
-    register int x, y;
-
-    getyx(stdscr, y, x);
-    x--;
-    while (cnt--) {
-	move(++y, x);
-	addch('|');
-    }
+    --x;
+    while (--cnt)
+	dungeonset(++y, x, '|');
 }
 
 /*
  * rnd_pos:
  *	pick a random spot in a room
  */
-
-rnd_pos(rp, cp)
-register struct room *rp;
-register coord *cp;
+void
+rnd_pos(struct room *rp, struct Coord *cp)
 {
     cp->x = rp->r_pos.x + rnd(rp->r_max.x-2) + 1;
     cp->y = rp->r_pos.y + rnd(rp->r_max.y-2) + 1;

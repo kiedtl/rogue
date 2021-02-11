@@ -134,7 +134,7 @@ register int ydelta, xdelta;
 		mvwinch(cw, obj->o_pos.y, obj->o_pos.x) != ' ')
 	    {
 		mvwaddch(cw, obj->o_pos.y, obj->o_pos.x, obj->o_type);
-		draw(cw);
+		//draw(cw);//REFACTOR
 	    }
 	    continue;
 	}

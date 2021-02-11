@@ -5,18 +5,19 @@
 
 DISTNAME=rogue3.6.2
 
-HDRS   = rogue.h daemon.h
+HDRS   = rogue.h daemon.h dungeon.h
 CFILES = vers.c armor.c chase.c command.c daemon.c daemons.c fight.c \
 	 init.c io.c list.c main.c misc.c monsters.c move.c newlevel.c \
 	 options.c pack.c passages.c potions.c rings.c rip.c rooms.c \
-	 save.c scrolls.c state.c sticks.c things.c weapons.c wizard.c
+	 save.c scrolls.c state.c sticks.c things.c weapons.c wizard.c \
+	 dungeon.c util.c
 OBJS   = $(CFILES:.c=.o)
 
 MISC   = Makefile LICENSE.TXT rogue.6 rogue.r
 
 CC     = gcc
 CFLAGS = -O3
-CRLIB  = -lcurses
+CRLIB  = -lncurses -lbsd
 RM     = rm -f
 TAR    = tar
 

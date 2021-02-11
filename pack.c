@@ -251,7 +251,7 @@ int type;
     if (!slow_invent)
     {
 	mvwaddstr(hw, LINES-1, 0, "--Press space to continue--");
-	draw(hw);
+	draw();
 	wait_for(' ');
 	clearok(cw, TRUE);
 	touchwin(cw);

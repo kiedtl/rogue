@@ -96,7 +96,7 @@ register FILE *savef;
     int scols = COLS;
     
     wmove(cw, LINES-1, 0);
-    draw(cw);
+    //draw(cw); //REFACTOR
     fstat(fileno(savef), &sbuf);
     fwrite("junk", 1, 5, savef);
     fseek(savef, 0L, 0);
@@ -215,7 +215,7 @@ char **envp;
 
     environ = envp;
     strcpy(file_name, file);
-    setup();
+    setup_signals();
     clearok(curscr, TRUE);
     touchwin(cw);
     srand(getpid());

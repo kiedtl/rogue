@@ -7,7 +7,6 @@
  * @(#)main.c		3.27 (Berkeley) 6/15/81
  */
 
-#include "curses.h"
 #include <time.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -15,12 +14,16 @@
 #include <termios.h>
 #include <stdlib.h>
 
+#include <curses.h>
+#include <bsd/string.h>
+
 #include "rogue.h"
 
+int getopt(int, const char **, const char **);
+extern char *optarg;
+extern int   optind;
+
 struct termios terminal;
-WINDOW *cw;               /* Window that the player sees */
-WINDOW *hw;               /* Used for the help command */
-WINDOW *mw;               /* Used to store mosnters */
 
 int
 main(int argc, char **argv, char **envp)
@@ -30,13 +33,32 @@ main(int argc, char **argv, char **envp)
 	struct linked_list *item;
 	struct object *obj;
 
-	/*
-	 * check for print-score option
-	 */
-	if (argc == 2 && strcmp(argv[1], "-s") == 0) {
-		waswizard = TRUE;
-		score(0, -1);
-		exit(0);
+	int opt;
+	while ((opt = getopt(argc, argv, "sjn:f:Vh")) != -1) {
+		switch (opt) {
+		break; case 's':
+			waswizard = TRUE;
+			score(0, -1);
+			exit(0);
+		break; case 'j':
+			jump = !jump;
+		break; case 'F':
+			fight_flush = !fight_flush;
+		break; case 'c':
+			askme = !askme;
+		break; case 'n':
+			strlcpy(whoami, optarg, sizeof(whoami));
+		break; case 'f':
+			strlcpy(fruit, optarg, sizeof(fruit));
+		break; case 'V':
+			printf("rogue v%s\n", release);
+			exit(EXIT_SUCCESS);
+		break; case 'h': default:
+			printf("usage: %s [-s]\n", argv[0]);
+			printf("       %s [-jn] [-f fruit] [-n name] save_file\n", argv[0]);
+			printf("       %s [-Vh]\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	/*
@@ -53,25 +75,23 @@ main(int argc, char **argv, char **envp)
 	strcpy(file_name, home);
 	strcat(file_name, "rogue.sav");
 
-	if ((env = getenv("ROGUEOPTS")) != NULL)
-		parse_opts(env);
-
-	if (env == NULL || whoami[0] == '\0') {
+	if (strlen(whoami) == 0) {
 		if ((pw = getpwuid(getuid())) == NULL) {
 			printf("Say, who the hell are you?\n");
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 
 		strucpy(whoami, pw->pw_name, strlen(pw->pw_name));
 	}
 
-	if (env == NULL || fruit[0] == '\0')
+	if (fruit[0] == '\0')
 		strcpy(fruit, "slime-mold");
 
-	if (argc == 2) {
-		if (!restore(argv[1], envp)) { /* Note: restore will never return */
+	if (optind < argc) {
+		/* Note: restore will never return */
+		if (!restore(argv[optind], envp)) {
 			endwin();
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 	} 
 
@@ -85,40 +105,19 @@ main(int argc, char **argv, char **envp)
 		printf("Hello %s, welcome to dungeon (seed %d)", whoami, seed);
 	else
 		printf("Hello %s, just a moment while I dig the dungeon...", whoami);
-
 	fflush(stdout);
+
 	init_player();        /* Roll up the rogue */
 	init_things();        /* Set up probabilities of things */
 	init_names();         /* Set up names of scrolls */
 	init_colors();        /* Set up colors of potions */
 	init_stones();        /* Set up stone settings of rings */
 	init_materials();     /* Set up materials of wands */
-	initscr();            /* Start up cursor package */
 
-	if (COLS < 70 || LINES < 22) {
-		printf("min terminal size: %d lines, %d cols\n", LINES, COLS);
-		endwin();
-		exit(1);
-	}
+	setup_signals();
 
-	setup();
-
-	/*
-	 * Set up windows
-	 */
-	cw = newwin(LINES, COLS, 0, 0);
-	mw = newwin(LINES, COLS, 0, 0);
-	hw = newwin(LINES, COLS, 0, 0);
-	waswizard = wizard;
-	new_level();        /* Draw current level */
-
-	/*
-	 * Start up daemons and fuses
-	 */
-	daemon(doctor, 0, AFTER);
-	fuse(swander, 0, WANDERTIME, AFTER);
-	daemon(stomach, 0, AFTER);
-	daemon(runners, 0, AFTER);
+	tcgetattr(0, &terminal);
+	ui_init();
 
 	/*
 	 * Give the rogue his weaponry.  First a mace.
@@ -181,6 +180,7 @@ main(int argc, char **argv, char **envp)
 	obj->o_count = 1;
 	obj->o_which = 0;
 	add_pack(item, TRUE);
+
 	playit();
 }
 
@@ -191,8 +191,8 @@ main(int argc, char **argv, char **envp)
 _Noreturn void
 endit(int p)
 {
-	endwin();
-	exit(0);
+	ui_shutdown();
+	exit(EXIT_FAILURE);
 }
 
 /*
@@ -221,7 +221,7 @@ roll(int number, int sides)
 /*
  * handle stop and start signals
  */
-# ifdef SIGTSTP
+#ifdef SIGTSTP
 void
 tstp(int p)
 {
@@ -234,13 +234,13 @@ tstp(int p)
 	noecho();
 	clearok(curscr, TRUE);
 	touchwin(cw);
-	draw(cw);
+	draw();
 	flush_type();		/* flush input */
 }
-# endif
+#endif
 
 void
-setup(void)
+setup_signals(void)
 {
 #ifndef DUMP
 	signal(SIGHUP, auto_save);
@@ -271,8 +271,6 @@ setup(void)
 #ifdef SIGTSTP
 	signal(SIGTSTP, tstp);
 #endif
-	crmode();		/* Cbreak mode */
-	noecho();		/* Echo off */
 }
 
 /*
@@ -283,16 +281,47 @@ setup(void)
 void
 playit(void)
 {
+	waswizard = wizard;
+	new_level();        /* Draw current level */
+
 	/*
-	 * parse environment declaration of options
+	 * Start up daemons and fuses
 	 */
-	char *opts;
-	if ((opts = getenv("ROGUEOPTS")) != NULL)
-		parse_opts(opts);
+	daemon(doctor, 0, AFTER);
+	fuse(swander, 0, WANDERTIME, AFTER);
+	daemon(stomach, 0, AFTER);
+	daemon(runners, 0, AFTER);
 
 	oldpos = hero;
 	oldrp = roomin(&hero);
-	while (playing)
-		command();         /* Command execution */
+
+	while (playing) {
+		/*
+		 * Let the daemons start up
+		 */
+		do_daemons(BEFORE);
+		do_fuses(BEFORE);
+
+		_Bool after = command();
+
+		/*
+		 * Kick off the rest if the daemons and fuses
+		 */
+		if (after) {
+			look(FALSE);
+			do_daemons(AFTER);
+			do_fuses(AFTER);
+	
+			if (ISRING(LEFT, R_SEARCH))
+				search();
+			else if (ISRING(LEFT, R_TELEPORT) && rnd(100) < 2)
+				teleport();
+			if (ISRING(RIGHT, R_SEARCH))
+				search();
+			else if (ISRING(RIGHT, R_TELEPORT) && rnd(100) < 2)
+				teleport();
+		}
+	}
+
 	endit(-1);
 }

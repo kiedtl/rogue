@@ -63,14 +63,14 @@ endmsg()
     {
 	wmove(cw, 0, mpos);
 	waddstr(cw, "--More--");
-	draw(cw);
+	draw();
 	wait_for(' ');
     }
     mvwaddstr(cw, 0, 0, msgbuf);
     wclrtoeol(cw);
     mpos = newpos;
     newpos = 0;
-    draw(cw);
+    draw();
 }
 
 doadd(char *fmt, va_list ap)
@@ -113,7 +113,7 @@ readchar()
  * status:
  *	Display the important stats line.  Keep the cursor where it was.
  */
-
+void
 status()
 {
     register int oy, ox, temp;
@@ -200,15 +200,13 @@ register char ch;
  * show_win:
  *	function used to display a window and wait before returning
  */
-
-show_win(scr, message)
-register WINDOW *scr;
-char *message;
+void
+show_win(WINDOW *scr, char *message)
 {
     mvwaddstr(scr, 0, 0, message);
     touchwin(scr);
-    wmove(scr, hero.y, hero.x);
-    draw(scr);
+    dungeoncurs_c(&hero);
+    draw();
     wait_for(' ');
     clearok(cw, TRUE);
     touchwin(cw);

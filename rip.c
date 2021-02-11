@@ -12,7 +12,6 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <fcntl.h>
-#include "machdep.h"
 #include "rogue.h"
 
 static char *rip[] = {
@@ -82,7 +81,7 @@ death(char monst)
 	mvaddstr(18, 26, prbuf);
 
 	move(LINES-1, 0);
-	draw(stdscr);
+	//draw(stdscr); //REFACTOR
 	wait_for(' ');
 
 	score(purse, 0, monst);
